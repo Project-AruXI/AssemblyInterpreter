@@ -3,6 +3,7 @@
 const std = @import("std");
 const Token = @import("token.zig");
 const _instr = @import("instr.zig");
+const _directive = @import("directive.zig");
 const Expr = @import("expr.zig");
 
 
@@ -487,30 +488,36 @@ fn parseIdentifier(tokens: []const Token.Token) !_instr.Instr {
 }
 
 
-pub fn parse(tokens: []const Token.Token) !_instr.Instr {
-	// std.debug.print("Parsing tokens...\n", .{});
-
-	var instr: _instr.Instr = undefined;
-
-
+pub fn parseInstruction(tokens: []const Token.Token) !_instr.Instr {
 	switch (tokens[0].tokType) {
 		.IDENTIFIER => {
-			instr = parseIdentifier(tokens) catch |err| {
+			return parseIdentifier(tokens) catch |err| {
 				std.debug.print("Error parsing identifier: {any}\n", .{err});
 				return err;
 			};
 		},
-		.LABEL => {
-			std.debug.print("Parsing label not yet implemented\n", .{});
-			return ParserError.UnexpectedToken;
-		},
-		// .DIRECTIVE => {
-		// }
-		else => {
-			return ParserError.UnexpectedToken;
-		}
+		else => return ParserError.UnexpectedToken
 	}
+}
 
-	// Guaranteed to have valid instruction, for now at least
-	return instr;
+
+
+pub fn parseDirective(tokens: []const Token.Token) !_directive.Directive {
+	switch (tokens[0].tokType) {
+		.DIRECTIVE => {
+			// For now, assume only directive is SET, format is: `.set symbol, expr`
+			if (tokens.len < 4) return ParserError.InvalidSyntax;
+			if (tokens[1].tokType != .IDENTIFIER) return ParserError.InvalidSyntax;
+			if (tokens[2].tokType != .COMMA) return ParserError.InvalidSyntax;
+
+			const exprVal = try Expr.parseEval(tokens[3..], Expr.ExprSize.U32);
+
+			return .{
+				.directiveType = .Set,
+				.symbol = tokens[1].lexeme,
+				.exprNum = @intCast(exprVal)
+			};
+		},
+		else => return ParserError.UnexpectedToken
+	}
 }

@@ -6,6 +6,8 @@ const chameleon = @import("chameleon");
 const Config = @import("config.zig");
 const Engine = @import("Engine");
 const assembler = @import("assembler/assemble.zig");
+const preprocessor = @import("assembler/preprocess.zig");
+// const Directive = @import("assembler/directive.zig").Directive;
 const Command = @import("command.zig");
 
 var wBuffer: [1024]u8 = undefined;
@@ -259,8 +261,6 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 	}
 }
 
-
-
 fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: bool) !bool {
 	std.debug.print("Processing command: {s}", .{input});
 
@@ -314,6 +314,23 @@ fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: 
 }
 
 
+fn processDirective(aruEngine: *Engine.AruEngine, directiveStr: []const u8) !void {
+	std.debug.print("Processing directive: {s}", .{directiveStr});
+	// TODO
+	// Allowable directives in REPL mode are:
+	// .set symbol, expr
+
+	const directive = try assembler.assembleDirective(directiveStr);
+	switch (directive.directiveType) {
+		.Set => {
+			std.debug.print("Processing .set directive. Symbol: {s}, ExprNum: {d}\n", .{directive.symbol, directive.exprNum});
+			// For now, just set the symbol to the current IR value; in the future we can evaluate the expression and set it to that value
+			try aruEngine.mem.addSymbol(directive.symbol, aruEngine.cpu.ir);
+		}
+	}
+}
+
+
 fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 	std.debug.print("Running REPL with allowSystem={}\n", .{allowSystem});
 
@@ -343,10 +360,36 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 			continue;
 		}
 
+		const preprocessed = preprocessor.preprocess(trimmed);
+		const label = preprocessed.@"0";
+		const rest = preprocessed.@"1";
+
+		std.debug.print("Preprocessed input. Label: {s}, Rest: {s}", .{label orelse "null", rest orelse "null"});
+
+		if (label) |l| {
+			std.debug.print("Adding label to symbol map: {s}\n", .{l});
+			aruEngine.mem.addLabel(l, aruEngine.cpu.ir) catch |err| {
+				std.debug.print("Error adding label: {any}\n", .{err});
+				try stdout.print("Error adding label: {any}\n", .{err});
+				try stdout.flush();
+			};
+		}
+		
+		if (rest) |i_d| {
+			// Rest can either be directive or instruction
+			// Handle directive stuff here, leave rest as instruction
+			if (std.mem.startsWith(u8, i_d, ".")) {
+				processDirective(aruEngine, i_d) catch |err| {
+					try stdout.print("Error processing directive: {any}\n", .{err});
+					try stdout.flush();
+				};
+				continue;
+			}
+		}
+
 		// Instructions from here on out
-		// For now, assume normal instruction (no labels or directives)
-		std.debug.print("Received instruction input: {s}", .{trimmed});
-		const instrEncoding = assembler.assemble(trimmed) catch |err| {
+		std.debug.print("Received instruction input: {s}", .{rest.?});
+		const instrEncoding = assembler.assemble(rest.?) catch |err| {
 			try stdout.print("Error assembling instruction: {any}\n", .{err});
 			try stdout.flush();
 			continue;
@@ -406,4 +449,5 @@ pub fn startRepl(cliConfig: *Config.CliConfig) !void {
 	};
 
 	allocator.free(aruEngine.mem.mem);
+	aruEngine.mem.deinit();
 }

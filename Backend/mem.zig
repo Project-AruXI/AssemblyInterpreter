@@ -6,6 +6,8 @@ const std = @import("std");
 pub const MemoryError = error{
 	OutOfBounds,
 	UnalignedAccess,
+	DuplicateLabel,
+	LabelNotFound
 };
 
 
@@ -23,7 +25,7 @@ pub const AruMemory = struct {
 	heapStart: u32,
 	stackStart: u32,
 
-	labelMap: std.AutoHashMap([]const u8, u32),
+	symbolMap: std.StringHashMap(u32),
 
 	pub fn init(allocator: std.mem.Allocator, memSize: u32, heapSize: u32, stackSize: u32) !AruMemory {
 		std.debug.print("Initializing memory with size {d} bytes...\n", .{memSize});
@@ -41,6 +43,14 @@ pub const AruMemory = struct {
 		const heapStart = textSegStart + textSegSize;
 		const stackStart = heapStart + heapSize;
 
+		var symbolMap = std.StringHashMap(u32).init(allocator);
+		// Pre-populate symbol map with "labels" indicating segment starts
+		try symbolMap.put("data", dataSegStart);
+		try symbolMap.put("text", textSegStart);
+		try symbolMap.put("heap", heapStart);
+		try symbolMap.put("stack", stackStart);
+
+
 		return AruMemory{
 			.mem = memSlice,
 			.memSize = memSize,
@@ -48,15 +58,14 @@ pub const AruMemory = struct {
 			.textSegStart = textSegStart,
 			.heapStart = heapStart,
 			.stackStart = stackStart,
-			.labelMap = std.AutoHashMap([]const u8, u32).init(allocator),
+			.symbolMap = symbolMap,
 		};
 	}
 
 
 	pub fn deinit(this: *AruMemory) void {
 		std.debug.print("Deinitializing memory...\n", .{});
-		this.labelMap.deinit();
-		this.mem = null;
+		this.symbolMap.deinit();
 	}
 
 	// Writer Interface
@@ -122,5 +131,49 @@ pub const AruMemory = struct {
 		var tmp: [@sizeOf(T)]u8 = undefined;
 		@memcpy(tmp[0..], this.mem[idx..idx + @sizeOf(T)]);
 		return std.mem.readInt(T, tmp[0..@sizeOf(T)], .little);
+	}
+
+
+	// Symbol Map Interface
+	// Recommended to use this interface to interact with the map instead of directly accessing the map, 
+	//  to ensure proper error handling and to abstract away implementation details.
+
+	/// Adds a label to the symbol map with its associated address. Used for labels in assembly code.
+	/// It also makes sure that the value is not out of memory size.
+	/// If an address is already associated with the given label, it will be overwritten.
+	/// However, the only labels not allowed to be overwritten are the predefined segment labels ("data", "text", "heap", "stack").
+	pub fn addLabel(this: *AruMemory, label: []const u8, addr: u32) !void {
+		if (addr >= this.memSize) {
+			return MemoryError.OutOfBounds;
+		}
+
+		if (std.mem.eql(u8, label, "data") or std.mem.eql(u8, label, "text") or std.mem.eql(u8, label, "heap") or std.mem.eql(u8, label, "stack")) {
+			return MemoryError.DuplicateLabel;
+		}
+
+		try this.symbolMap.put(label, addr);
+	}
+
+	/// Adds a symbol to the symbol map with its associated value. Used for directives like `.set`.
+	pub fn addSymbol(this: *AruMemory, symbol: []const u8, value: u32) !void {
+		try this.symbolMap.put(symbol, value);
+	}
+
+	pub fn getAddress(this: *AruMemory, label: []const u8) !u32 {
+		const addr = this.symbolMap.get(label);
+		if (addr) |a| {
+			return a.*;
+		} else {
+			return MemoryError.LabelNotFound;
+		}
+	}
+
+	pub fn getValue(this: *AruMemory, symbol: []const u8) !u32 {
+		const value = this.symbolMap.get(symbol);
+		if (value) |v| {
+			return v.*;
+		} else {
+			return MemoryError.LabelNotFound;
+		}
 	}
 };

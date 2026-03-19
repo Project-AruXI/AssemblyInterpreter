@@ -198,12 +198,18 @@ fn getNextToken(state: *LexerState, input: []const u8) !?Token.Token {
 		},
 		'.' => {
 			// A dot can have multiple meanings: directive or part of floating point
-			// For now, assume FP and consume following digits if present
 			if (state.peekedChar != null and std.ascii.isDigit(state.peekedChar.?)) {
 				var endPos = state.pos + 1;
 				while (endPos < input.len and (std.ascii.isDigit(input[endPos]) or input[endPos] == '.')) : (endPos += 1) {}
 				token.lexeme = input[state.pos..endPos];
 				token.tokType = .FLOAT;
+				state.pos = endPos - 1;
+			} else if (state.peekedChar != null and std.ascii.isAlphabetic(state.peekedChar.?)) {
+				// Directive, consume until next whitespace
+				var endPos = state.pos + 1;
+				while (endPos < input.len and !std.ascii.isWhitespace(input[endPos])) : (endPos += 1) {}
+				token.lexeme = input[state.pos..endPos];
+				token.tokType = .DIRECTIVE;
 				state.pos = endPos - 1;
 			} else {
 				return LexerError.InvalidCharacter;

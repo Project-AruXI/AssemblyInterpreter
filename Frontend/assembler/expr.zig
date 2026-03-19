@@ -1,9 +1,14 @@
 const std = @import("std");
 const Token = @import("token.zig");
 
-pub const ExprError = error{ InvalidExpression };
+pub const ExprError = error { 
+	InvalidExpression
+};
 
-pub const ExprSize = enum { U14, S9, S24, S19 };
+pub const ExprSize = enum { 
+	U14, S9, S24, S19,
+	U8, U16, U32
+};
 
 const TokenParser = struct {
 	toks: []const Token.Token,
@@ -247,6 +252,9 @@ fn applySize(v: u64, size: ExprSize) u64 {
 			if ((r & sign) != 0) return r | (~mask);
 			return r;
 		},
+		.U8 => return v & 0xFF,
+		.U16 => return v & 0xFFFF,
+		.U32 => return v & 0xFFFFFFFF,
 	}
 }
 

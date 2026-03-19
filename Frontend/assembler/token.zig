@@ -29,6 +29,7 @@ pub const TokenType = enum {
 	LABEL,
 	INTEGER,
 	LP,
+	DIRECTIVE,
 	UNKNOWN
 };
 
