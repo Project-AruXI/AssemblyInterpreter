@@ -257,6 +257,13 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 		.Write => {
 			// TODO
 		},
+		.Symbols => {
+			try stdout.print("Symbol map:\n", .{});
+			var iter = aruEngine.mem.symbolMap.iterator();
+			while (iter.next()) |entry| {
+				try stdout.print("  {s}: 0x{x}\n", .{entry.key_ptr.*, entry.value_ptr.*});
+			}
+		},
 		else => try stdout.print("Unknown command type: {any}\n", .{cmd.cmdType}),
 	}
 }
@@ -288,6 +295,7 @@ fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: 
 		try stdout.print("/registers - Print current register values\n", .{});
 		try stdout.print("/register [reg] - Print value of specific register\n", .{});
 		try stdout.print("/memory [address] [length] [format?(hex|dec|bin)] - Print memory contents\n", .{});
+		try stdout.print("/symbols - Print symbol map\n", .{});
 		try stdout.print("/dump - Dump CPU state and memory contents to a file\n", .{});
 		try stdout.print("/help - Show this help message\n", .{});
 		try stdout.print("/exit - Exit the REPL\n", .{});
@@ -314,7 +322,7 @@ fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: 
 }
 
 
-fn processDirective(aruEngine: *Engine.AruEngine, directiveStr: []const u8) !void {
+fn processDirective(aruEngine: *Engine.AruEngine, directiveStr: []const u8, allocator: std.mem.Allocator) !void {
 	std.debug.print("Processing directive: {s}", .{directiveStr});
 	// TODO
 	// Allowable directives in REPL mode are:
@@ -323,9 +331,17 @@ fn processDirective(aruEngine: *Engine.AruEngine, directiveStr: []const u8) !voi
 	const directive = try assembler.assembleDirective(directiveStr);
 	switch (directive.directiveType) {
 		.Set => {
-			std.debug.print("Processing .set directive. Symbol: {s}, ExprNum: {d}\n", .{directive.symbol, directive.exprNum});
+			// std.debug.print("Processing .set directive. Symbol: {s}, ExprNum: {d}\n", .{directive.symbol, directive.exprNum});
 			// For now, just set the symbol to the current IR value; in the future we can evaluate the expression and set it to that value
-			try aruEngine.mem.addSymbol(directive.symbol, aruEngine.cpu.ir);
+			const symbol = allocator.dupe(u8, directive.symbol) catch |err| {
+				try stdout.print("Error duplicating symbol: {any}\n", .{err});
+				try stdout.flush();
+				return;
+			};
+			aruEngine.mem.addSymbol(symbol, directive.exprNum) catch |err| {
+				try stdout.print("Error adding symbol: {any}\n", .{err});
+				try stdout.flush();
+			};
 		}
 	}
 }
@@ -333,6 +349,14 @@ fn processDirective(aruEngine: *Engine.AruEngine, directiveStr: []const u8) !voi
 
 fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 	std.debug.print("Running REPL with allowSystem={}\n", .{allowSystem});
+
+	var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+	defer _ = gpa.deinit();
+	const allocator = gpa.allocator();
+
+	var arena = std.heap.ArenaAllocator.init(allocator);
+	defer arena.deinit();
+	const arenaAllocator = arena.allocator();
 
 	while (true) {
 		try stdout.writeAll(REPL_PROMPT);
@@ -367,9 +391,13 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 		std.debug.print("Preprocessed input. Label: {s}, Rest: {s}", .{label orelse "null", rest orelse "null"});
 
 		if (label) |l| {
-			std.debug.print("Adding label to symbol map: {s}\n", .{l});
-			aruEngine.mem.addLabel(l, aruEngine.cpu.ir) catch |err| {
-				std.debug.print("Error adding label: {any}\n", .{err});
+			// std.debug.print("Adding label to symbol map: {s}\n", .{l});
+			const newLabel = arenaAllocator.dupe(u8, l) catch |err| {
+				try stdout.print("Error duplicating label: {any}\n", .{err});
+				try stdout.flush();
+				return;
+			};
+			aruEngine.mem.addLabel(newLabel, aruEngine.cpu.ir) catch |err| {
 				try stdout.print("Error adding label: {any}\n", .{err});
 				try stdout.flush();
 			};
@@ -379,7 +407,7 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 			// Rest can either be directive or instruction
 			// Handle directive stuff here, leave rest as instruction
 			if (std.mem.startsWith(u8, i_d, ".")) {
-				processDirective(aruEngine, i_d) catch |err| {
+				processDirective(aruEngine, i_d, arenaAllocator) catch |err| {
 					try stdout.print("Error processing directive: {any}\n", .{err});
 					try stdout.flush();
 				};

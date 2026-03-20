@@ -63,6 +63,7 @@ Commands:
 	- The address must be within the data segment, otherwise it will error out
 	- If a label is provided instead of an address, it will resolve the label to an address using the label map
 	- It will read until it encounters a null terminator or reaches the specified length, whichever comes first
+- `/symbols`: Print all symbols in the symbol map with their associated addresses/values
 
 System Commands (only available if `--allow-system` is enabled, use with caution):
 - `/set-reg [reg] [value]`: Set register to a specific value
@@ -136,43 +137,15 @@ Two functional units:
 
 ### API
 
-Main Engine:
-- `engineInit(Config) -> AruEngine`
-- `AruEngine.getCPU() -> CPU`
-- `AruEngine.getMemory() -> Memory`
-- `engineDeinit(engine)`
-
-CPU:
-- `getRegister(register) -> RegisterValue`
-- `setRegister(register, value)`
-- `step()`
-- `reset()`
-- `dumpState() -> CpuState`
-
-
-Memory:
-- `read(address, length) -> []u8`
-- `write(address, data)`
-- `dumpMemory(start, length) -> []u8`
-- `createLabelMap() -> LabelMap<string,u32>`
-- `addLabel(labelName, address)`
-- `getLabelMap() -> LabelMap<string,u32>`
-
-
-
+[ ] Include API
 
 
 ### Usage
 
+[ ] Usage examples
+
 ```zig
 const Engine = @import("Engine");
-
-let aruEngine = Engine.engineInit(.{}); // Use default config
-
-const cpu = aruEngine.getCPU();
-const memory = aruEngine.getMemory();
-
-
 ```
 
 
@@ -202,7 +175,9 @@ x3 <- [0x2] (value at memory address 0x2)
 
 
 ## FUTURE WORK
-
-- Implement label maps
-- Implement "symbol" map; allowing runtime constants
-	- Aka doing `.set name val` would place `val` with key `name` in the symbol map, then doing `mv x0, name`
+- Extend directive support; currently only `.set` is supported
+	- Possible directives are the data directives (`.byte`, `.string`, etc)
+		- All of them will go to the data segment, need a way to maintain the current free pointer
+		- Best way is `label: .byte 0x0`: data is written to memory, label is associated
+		- If only `.byte 0x0`, data will be written but no label will be associated, so it can only be accessed by address
+- Implement FP and Vector for engine

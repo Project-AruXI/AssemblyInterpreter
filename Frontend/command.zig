@@ -12,6 +12,7 @@ pub const CommandType = enum {
 	SetMemory,
 	Write,
 	Read,
+	Symbols,
 	Unknown
 };
 
@@ -61,6 +62,8 @@ pub fn parseCommand(input: []const u8) !Command {
 		cmdType = .Write;
 	} else if (std.mem.eql(u8, cmdName, "read")) {
 		cmdType = .Read;
+	} else if (std.mem.eql(u8, cmdName, "symbols")) {
+		cmdType = .Symbols;
 	} else {
 		return ParseCommandError.InvalidCommand;
 	}
