@@ -1,6 +1,7 @@
 // zig fmt: off
 
 const std = @import("std");
+const builtin = @import("builtin");
 const chameleon = @import("chameleon");
 
 const Config = @import("config.zig");
@@ -12,16 +13,21 @@ const Command = @import("command.zig");
 
 var wBuffer: [1024]u8 = undefined;
 var rBuffer: [1024]u8 = undefined;
-var w = std.fs.File.stdout().writer(&wBuffer);
-var r = std.fs.File.stdin().reader(&rBuffer);
+var w: std.fs.File.Writer = switch (builtin.os.tag) {
+	.windows => undefined,
+	else => std.fs.File.stdout().writer(&wBuffer)
+};
+var r: std.fs.File.Reader = switch (builtin.os.tag) {
+	.windows => undefined,
+	else => std.fs.File.stdin().reader(&rBuffer)
+};
 const stdout = &w.interface;
 const stdin = &r.interface;
 
 var c = chameleon.initComptime();
 var rC:chameleon.RuntimeChameleon = undefined;
 
-// const REPL_PROMPT = c.magenta().fmt("asmintrep> ");
-const REPL_PROMPT = "asmintrep> ";
+const REPL_PROMPT = "asmintrep>";
 
 
 
@@ -359,7 +365,7 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 	const arenaAllocator = arena.allocator();
 
 	while (true) {
-		try stdout.writeAll(REPL_PROMPT);
+		try rC.magenta().printOut("{s} ", .{REPL_PROMPT});
 		try stdout.flush();
 
 		const line = try stdin.takeDelimiterInclusive('\n');
@@ -437,6 +443,11 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 
 
 pub fn startRepl(cliConfig: *Config.CliConfig) !void {
+	if (builtin.os.tag == .windows) {
+		w = std.fs.File.stdout().writer(&wBuffer);
+		r = std.fs.File.stdin().reader(&rBuffer);
+	}
+
 	var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
 	defer _ = gpa.deinit();
 	const allocator = gpa.allocator();

@@ -1,6 +1,7 @@
 // zig fmt: off
 
 const std = @import("std");
+const builtin = @import("builtin");
 // const Engine = @import("Engine");
 const args = @import("args");
 const App = args.App;
@@ -12,7 +13,10 @@ const interpreter = @import("interpreter.zig");
 const Config = @import("config.zig");
 
 var buffer: [1024]u8 = undefined;
-var w = std.fs.File.stdout().writer(&buffer);
+var w: std.fs.File.Writer = switch (builtin.os.tag) {
+	.windows => undefined,
+	else => std.fs.File.stdout().writer(&buffer)
+};
 const stdout = &w.interface;
 
 
@@ -112,6 +116,10 @@ fn parseArgs() !*Config.CliConfig {
 
 
 pub fn main() !void {
+	if (builtin.os.tag == .windows) {
+		w = std.fs.File.stdout().writer(&buffer);
+	}
+
 	const cliConfig = parseArgs() catch {
 		std.debug.print("Failed to parse arguments\n", .{});
 		return;
