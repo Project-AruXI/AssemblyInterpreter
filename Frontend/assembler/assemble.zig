@@ -17,7 +17,7 @@ pub fn assemble(instrStr: []const u8) !u32 {
 		std.debug.print("Lexing error: {any}\n", .{err});
 		return err;
 	};
-	errdefer allocator.free(tokens);
+	// errdefer allocator.free(tokens); // Apparently not needed????
 	defer allocator.free(tokens);
 
 	const instr = Parser.parseInstruction(tokens) catch |err| {

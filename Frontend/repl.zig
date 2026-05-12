@@ -148,6 +148,7 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 				}
 				try stdout.print("]\n", .{});
 			}
+			try stdout.flush();
 		},
 		.GetRegister => {
 			const regName = cmd.register.?;
@@ -171,6 +172,7 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 					}
 				}
 			}
+			try stdout.flush();
 		},
 		.GetMemory => {
 			const addr = cmd.memoryAddress.?;
@@ -189,6 +191,7 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 				if ((idx + 1) % 8 == 0) try stdout.print("\n", .{});
 			}
 			try stdout.print("\n", .{});
+			try stdout.flush();
 		},
 		.Dump => {
 			// TODO
@@ -243,6 +246,7 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 				},
 				else => try stdout.print("unknown format\n", .{}),
 			}
+			try stdout.flush();
 		},
 		.SetMemory => {
 			const addr = cmd.memoryAddress.?;
@@ -408,7 +412,7 @@ fn runREPL(aruEngine: *Engine.AruEngine, allowSystem: bool) !void {
 				try stdout.flush();
 			};
 		}
-		
+
 		if (rest) |i_d| {
 			// Rest can either be directive or instruction
 			// Handle directive stuff here, leave rest as instruction

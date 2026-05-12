@@ -3,10 +3,11 @@
 const std = @import("std");
 
 const Mem = @import("mem.zig");
-const Instr = @import("instr.zig").Instr;
 const OS = @import("os.zig");
+const Instr = @import("opcodes.zig");
+// const Instr = @import("instr.zig").Instr;
 // var instrMap = @import("instr.zig").instrMap;
-var instrMap = [_]Instr{Instr.ERROR} ** 256;
+// var instrMap = [_]Instr{Instr.ERROR} ** 256;
 
 
 /// Represents a single vector register in the Aru32 Architecture.
@@ -56,49 +57,49 @@ pub const IntrepIAruCPU = struct {
 
 
 		// Initialize instruction map
-		instrMap[0b10000000] = Instr.ADD;
-		instrMap[0b10000001] = Instr.ADD;
-		instrMap[0b10001000] = Instr.ADDS;
-		instrMap[0b10001001] = Instr.ADDS;
-		instrMap[0b10010000] = Instr.SUB;
-		instrMap[0b10010001] = Instr.SUB;
-		instrMap[0b10011000] = Instr.SUBS;
-		instrMap[0b10011001] = Instr.SUBS;
-		instrMap[0b10100000] = Instr.MUL;
-		instrMap[0b10100010] = Instr.SMUL;
-		instrMap[0b10101000] = Instr.DIV;
-		instrMap[0b10101010] = Instr.SDIV;
-		instrMap[0b01000000] = Instr.OR;
-		instrMap[0b01000001] = Instr.OR;
-		instrMap[0b01000010] = Instr.AND;
-		instrMap[0b01000011] = Instr.AND;
-		instrMap[0b01000100] = Instr.XOR;
-		instrMap[0b01000101] = Instr.XOR;
-		instrMap[0b01000110] = Instr.NOT;
-		instrMap[0b01000111] = Instr.NOT;
-		instrMap[0b01001000] = Instr.LSL;
-		instrMap[0b01001001] = Instr.LSL;
-		instrMap[0b01001010] = Instr.LSR;
-		instrMap[0b01001011] = Instr.LSR;
-		instrMap[0b01001100] = Instr.ASR;
-		instrMap[0b01001101] = Instr.ASR;
-		instrMap[0b10000100] = Instr.MV;
-		instrMap[0b00010100] = Instr.LD;
-		instrMap[0b00110100] = Instr.LDB;
-		instrMap[0b01010100] = Instr.LDBS;
-		instrMap[0b01110100] = Instr.LDBZ;
-		instrMap[0b10010100] = Instr.LDH;
-		instrMap[0b10110100] = Instr.LDHS;
-		instrMap[0b11010100] = Instr.LDHZ;
-		instrMap[0b00011100] = Instr.STR;
-		instrMap[0b00111100] = Instr.STRB;
-		instrMap[0b01011100] = Instr.STRH;
-		instrMap[0b11000000] = Instr.UB;
-		instrMap[0b11000010] = Instr.UBR;
-		instrMap[0b11000100] = Instr.B;
-		instrMap[0b11000110] = Instr.CALL;
-		instrMap[0b11001000] = Instr.RET;
-		instrMap[0b10111110] = Instr.SYS;
+		// instrMap[0b10000000] = Instr.ADD;
+		// instrMap[0b10000001] = Instr.ADD;
+		// instrMap[0b10001000] = Instr.ADDS;
+		// instrMap[0b10001001] = Instr.ADDS;
+		// instrMap[0b10010000] = Instr.SUB;
+		// instrMap[0b10010001] = Instr.SUB;
+		// instrMap[0b10011000] = Instr.SUBS;
+		// instrMap[0b10011001] = Instr.SUBS;
+		// instrMap[0b10100000] = Instr.MUL;
+		// instrMap[0b10100010] = Instr.SMUL;
+		// instrMap[0b10101000] = Instr.DIV;
+		// instrMap[0b10101010] = Instr.SDIV;
+		// instrMap[0b01000000] = Instr.OR;
+		// instrMap[0b01000001] = Instr.OR;
+		// instrMap[0b01000010] = Instr.AND;
+		// instrMap[0b01000011] = Instr.AND;
+		// instrMap[0b01000100] = Instr.XOR;
+		// instrMap[0b01000101] = Instr.XOR;
+		// instrMap[0b01000110] = Instr.NOT;
+		// instrMap[0b01000111] = Instr.NOT;
+		// instrMap[0b01001000] = Instr.LSL;
+		// instrMap[0b01001001] = Instr.LSL;
+		// instrMap[0b01001010] = Instr.LSR;
+		// instrMap[0b01001011] = Instr.LSR;
+		// instrMap[0b01001100] = Instr.ASR;
+		// instrMap[0b01001101] = Instr.ASR;
+		// instrMap[0b10000100] = Instr.MV;
+		// instrMap[0b00010100] = Instr.LD;
+		// instrMap[0b00110100] = Instr.LDB;
+		// instrMap[0b01010100] = Instr.LDBS;
+		// instrMap[0b01110100] = Instr.LDBZ;
+		// instrMap[0b10010100] = Instr.LDH;
+		// instrMap[0b10110100] = Instr.LDHS;
+		// instrMap[0b11010100] = Instr.LDHZ;
+		// instrMap[0b00011100] = Instr.STR;
+		// instrMap[0b00111100] = Instr.STRB;
+		// instrMap[0b01011100] = Instr.STRH;
+		// instrMap[0b11000000] = Instr.UB;
+		// instrMap[0b11000010] = Instr.UBR;
+		// instrMap[0b11000100] = Instr.B;
+		// instrMap[0b11000110] = Instr.CALL;
+		// instrMap[0b11001000] = Instr.RET;
+		// instrMap[0b10111110] = Instr.SYS;
 
 
 		return IntrepIAruCPU{
@@ -186,8 +187,14 @@ pub const IntrepIAruCPU = struct {
 
 	fn decodeExecute(this: *IntrepIAruCPU, instr: u32) !void {
 		std.debug.print("Decoding and executing instruction {x}...\n", .{instr});
-		const opbits = (instr >> 24) & 0xFF;
-		const op = instrMap[opbits];
+		const opbits: u8 = @intCast((instr >> 24) & 0xFF);
+		// const op = instrMap[opbits];
+		const _op = Instr.Opcode.fromByte(opbits);
+		if (_op == null) {
+			std.debug.print("Invalid opcode: {x}\n", .{opbits});
+			return CPUError.InvalidInstruction;
+		}
+		const op = _op.?;
 		std.debug.print("Decoded opcode: {x}, operation: {any}\n", .{opbits, op});
 
 		// Since some instructions have I and R types, the only difference is the first bit in the opcode (for the most part)
@@ -215,12 +222,10 @@ pub const IntrepIAruCPU = struct {
 		const subop = (instr >> 19) & 0x1F;
 
 		switch (op) {
-			.ADD, .ADDS, .SUB, .SUBS, .OR, .AND, .XOR, .NOT, .LSL, .LSR, .ASR, .CMP, .MV, .MVN => {
+			.ADD_I, .ADD_R, .ADDS_I, .ADDS_R, .SUB_I, .SUB_R, .SUBS_I, .SUBS_R,
+			.OR_I, .OR_R, .AND_I, .AND_R, .XOR_I, .XOR_R, .NOT_I, .NOT_R, .LSL_I, .LSL_R, .LSR_I, .LSR_R, .ASR_I, .ASR_R,
+			.MVI => {
 				if (isIType) try this.executeIType(rd, rsI, imm14, op) else try this.executeRType(rd, rsR, rrR, op);
-			},
-			.NOP => {
-				// Do nothing
-				// This most likely will not execute since NOP is encoded as add xz, xz, 0 so it will run through IR
 			},
 			.MUL, .SMUL, .DIV, .SDIV => {
 				try this.executeRType(rd, rsR, rrR, op);
@@ -229,7 +234,7 @@ pub const IntrepIAruCPU = struct {
 				try this.executeMType(rd, rsM, rrM, simm9, op);
 			},
 			.UB, .UBR, .B, .CALL, .RET => {
-				// For now, we will not implement branching and will just print an error if we encounter these instructions
+				// For now, no branching and will just print an error if these instructions are encountered
 				std.debug.print("Branching instructions not implemented yet: {any}\n", .{op});
 				return CPUError.InvalidInstruction;
 			},
@@ -243,37 +248,30 @@ pub const IntrepIAruCPU = struct {
 		}
 	}
 
-	fn executeIType(this: *IntrepIAruCPU, rd: u32, rs: u32, imm14: u32, op: Instr) !void {
+	fn executeIType(this: *IntrepIAruCPU, rd: u32, rs: u32, imm14: u32, op: Instr.Opcode) !void {
 		std.debug.print("Executing I-type instruction {any} with rd=x{d}, rs=x{d}, imm14={x}\n", .{op, rd, rs, imm14});
 
 		var aluOp: ALUOp = undefined;
 		var updateFlags: bool = false;
 
 		switch (op) {
-			.ADD, .ADDS => {
+			.ADD_I, .ADDS_I => {
 				aluOp = .ADD;
-				updateFlags = op == .ADDS;
+				updateFlags = op == .ADDS_I;
 			},
-			.SUB, .SUBS => {
+			.SUB_I, .SUBS_I => {
 				aluOp = .SUB;
-				updateFlags = op == .SUBS;
+				updateFlags = op == .SUBS_I;
 			},
-			.OR => aluOp = .OR,
-			.AND => aluOp = .AND,
-			.XOR => aluOp = .XOR,
-			.NOT => aluOp = .NOT,
-			.LSL => aluOp = .LSL,
-			.LSR => aluOp = .LSR,
-			.ASR => aluOp = .ASR,
-			.CMP => {
-				aluOp = .SUB;
-				updateFlags = true;
-			},
-			.MV => {
+			.OR_I => aluOp = .OR,
+			.AND_I => aluOp = .AND,
+			.XOR_I => aluOp = .XOR,
+			.NOT_I => aluOp = .NOT,
+			.LSL_I => aluOp = .LSL,
+			.LSR_I => aluOp = .LSR,
+			.ASR_I => aluOp = .ASR,
+			.MVI => {
 				aluOp = .ADD;
-			},
-			.MVN => {
-				aluOp = .SUB;
 			},
 			else => {
 				std.debug.print("Invalid I-type instruction {any}\n", .{op});
@@ -291,7 +289,7 @@ pub const IntrepIAruCPU = struct {
 		if (rd != 30) this.gpRegs[rd] = result;
 	}
 
-	fn executeRType(this: *IntrepIAruCPU, rd: u32, rs: u32, rr: u32, op: Instr) !void {
+	fn executeRType(this: *IntrepIAruCPU, rd: u32, rs: u32, rr: u32, op: Instr.Opcode) !void {
 		std.debug.print("Executing R-type instruction {any} with rd=x{d}, rs=x{d}, rr=x{d}\n", .{op, rd, rs, rr});
 
 		var aluOp: ALUOp = undefined;
@@ -300,31 +298,21 @@ pub const IntrepIAruCPU = struct {
 		switch (op) {
 			.MUL, .SMUL => aluOp = .MUL,
 			.DIV, .SDIV => aluOp = .DIV,
-			.ADD, .ADDS => {
+			.ADD_R, .ADDS_R => {
 				aluOp = .ADD;
-				updateFlags = op == .ADDS;
+				updateFlags = op == .ADDS_R;
 			},
-			.SUB, .SUBS => {
+			.SUB_R, .SUBS_R => {
 				aluOp = .SUB;
-				updateFlags = op == .SUBS;
+				updateFlags = op == .SUBS_R;
 			},
-			.AND => aluOp = .AND,
-			.OR => aluOp = .OR,
-			.XOR => aluOp = .XOR,
-			.NOT => aluOp = .NOT,
-			.LSL => aluOp = .LSL,
-			.LSR => aluOp = .LSR,
-			.ASR => aluOp = .ASR,
-			.CMP => {
-				aluOp = .SUB;
-				updateFlags = true;
-			},
-			.MV => {
-				aluOp = .OR;
-			},
-			.MVN => {
-				aluOp = .SUB;
-			},
+			.AND_R => aluOp = .AND,
+			.OR_R => aluOp = .OR,
+			.XOR_R => aluOp = .XOR,
+			.NOT_R => aluOp = .NOT,
+			.LSL_R => aluOp = .LSL,
+			.LSR_R => aluOp = .LSR,
+			.ASR_R => aluOp = .ASR,
 			else => {
 				std.debug.print("Invalid R-type instruction {any}\n", .{op});
 				return CPUError.InvalidInstruction;
@@ -340,7 +328,7 @@ pub const IntrepIAruCPU = struct {
 		if (rd != 30) this.gpRegs[rd] = result;
 	}
 
-	fn executeMType(this: *IntrepIAruCPU, rd: u32, rs: u32, rr: u32, simm9: i16, op: Instr) !void {
+	fn executeMType(this: *IntrepIAruCPU, rd: u32, rs: u32, rr: u32, simm9: i16, op: Instr.Opcode) !void {
 		if (rd == 30) return;
 
 		const addr = this.gpRegs[rs] + this.gpRegs[rr] + @as(u32, @intCast(simm9));
@@ -439,8 +427,8 @@ pub const IntrepIAruCPU = struct {
 	fn executeSType(this: *IntrepIAruCPU, rd: u32, rs: u32, subop: u32) !void {
 		std.debug.print("Executing S-type instruction with rd=x{d}, rs=x{d}, subop={x}\n", .{rd, rs, subop});
 
-		// For now, only SYS instruction is syscall, which has subop of 0b00010
-		if (subop == 0b00010) {
+		// For now, only SYS instruction is syscall
+		if (subop == @intFromEnum(Instr.SysSubOp.SYSCALL)) {
 			// Syscall number is stored in x0
 			std.debug.print("Executing SYS instruction (system call) with syscall number of {d}\n", .{this.gpRegs[0]});
 			// For now, we will just print the syscall number and not actually implement any syscalls
