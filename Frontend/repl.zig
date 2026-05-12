@@ -11,6 +11,7 @@ const preprocessor = @import("assembler/preprocess.zig");
 // const Directive = @import("assembler/directive.zig").Directive;
 const Command = @import("command.zig");
 
+
 var wBuffer: [1024]u8 = undefined;
 var rBuffer: [1024]u8 = undefined;
 var w: std.fs.File.Writer = switch (builtin.os.tag) {
@@ -28,7 +29,6 @@ var c = chameleon.initComptime();
 var rC:chameleon.RuntimeChameleon = undefined;
 
 const REPL_PROMPT = "asmintrep>";
-
 
 
 fn regNameToReg(regname:[]const u8) Engine.CPU.Register {
@@ -114,7 +114,6 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 		return;
 	}
 
-
 	switch (cmd.cmdType) {
 		.GetRegisters => {
 			// IR: 0x00000000    SP: 0x00000000    CSTR: 0x0000
@@ -175,7 +174,30 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 			try stdout.flush();
 		},
 		.GetMemory => {
-			const addr = cmd.memoryAddress.?;
+			var addr: u32 = undefined;
+			if (cmd.memoryAddress) |a| {
+				addr = a;
+			} else if (cmd.memoryAddressName) |name| {
+				std.debug.print("Resolving memory address from name: {s}\n", .{name});
+
+				// Intercept when name is "stack"
+				// Use the sp instead
+				if (std.mem.eql(u8, name, "stack")) {
+					addr = aruEngine.cpu.sp;
+				} else {
+					addr = aruEngine.mem.getAddress(name) catch |err| {
+						try stdout.print("Error resolving memory address for name {s}: {any}\n", .{name, err});
+						try stdout.flush();
+						return;
+					};
+				}
+				std.debug.print("Resolved memory address: 0x{x}\n", .{addr});
+			} else {
+				try stdout.print("No memory address provided for set-mem command\n", .{});
+				try stdout.flush();
+				return;
+			}
+
 			const length = cmd.memoryLength.?;
 
 			const memSegment = &aruEngine.mem.mem[addr..addr + length];
@@ -249,7 +271,30 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 			try stdout.flush();
 		},
 		.SetMemory => {
-			const addr = cmd.memoryAddress.?;
+			var addr: u32 = undefined;
+			if (cmd.memoryAddress) |a| {
+				addr = a;
+			} else if (cmd.memoryAddressName) |name| {
+				std.debug.print("Resolving memory address from name: {s}\n", .{name});
+
+				// Intercept when name is "stack"
+				// Use the sp instead
+				if (std.mem.eql(u8, name, "stack")) {
+					addr = aruEngine.cpu.sp;
+				} else {
+					addr = aruEngine.mem.getAddress(name) catch |err| {
+						try stdout.print("Error resolving memory address for name {s}: {any}\n", .{name, err});
+						try stdout.flush();
+						return;
+					};
+				}
+				std.debug.print("Resolved memory address: 0x{x}\n", .{addr});
+			} else {
+				try stdout.print("No memory address provided for set-mem command\n", .{});
+				try stdout.flush();
+				return;
+			}
+
 			const value = cmd.memValue.?;
 			const length = cmd.memoryLength.?; // How many bytes to write to (up to 8 bytes)
 
@@ -276,6 +321,7 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 		},
 		else => try stdout.print("Unknown command type: {any}\n", .{cmd.cmdType}),
 	}
+	try stdout.flush();
 }
 
 fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: bool) !bool {
@@ -322,7 +368,7 @@ fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: 
 		};
 		// execute command
 		executeCommand(cmd, aruEngine, allowSystem) catch |err| {
-			std.debug.print("Error executing command: {any}\n", .{err});
+			// std.debug.print("Error executing command: {any}\n", .{err});
 			try stdout.print("Error executing command: {any}\n", .{err});
 			try stdout.flush();
 		};

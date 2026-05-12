@@ -8,12 +8,12 @@ pub const CommandType = enum {
 	GetRegister,
 	GetMemory,
 	Dump,
-	SetRegister,
-	SetMemory,
 	Write,
 	Read,
 	Symbols,
-	Unknown
+	SetRegister,
+	SetMemory,
+	Unknown,
 };
 
 pub const OutputFormat = enum {
@@ -24,12 +24,14 @@ pub const OutputFormat = enum {
 
 pub const Command = struct {
 	cmdType: CommandType,
-	register: ?[]const u8,
+	register: ?[]const u8, // The register to view or to set
 	memoryAddress: ?u32,
+	memoryAddressName: ?[]const u8, // Additional name for memory address, used in replacement or conjunction to numerical address as a label
 	memoryLength: ?u32,
 	regValue: ?u32, // Value to go into registers (currently up to 32-bit)
 	fRegValue: ?f32, // Value to go into FP registers (currently up to 32-bit float)
 	memValue: ?u64, // Value to write into memory (up to 64-bit)
+	memValueStr: ?[]const u8, // String value to write into memory
 	format: ?OutputFormat
 };
 
@@ -54,16 +56,16 @@ pub fn parseCommand(input: []const u8) !Command {
 		cmdType = .GetMemory;
 	} else if (std.mem.eql(u8, cmdName, "dump")) {
 		cmdType = .Dump;
-	} else if (std.mem.eql(u8, cmdName, "set-reg")) {
-		cmdType = .SetRegister;
-	} else if (std.mem.eql(u8, cmdName, "set-mem")) {
-		cmdType = .SetMemory;
 	} else if (std.mem.eql(u8, cmdName, "write")) {
 		cmdType = .Write;
 	} else if (std.mem.eql(u8, cmdName, "read")) {
 		cmdType = .Read;
 	} else if (std.mem.eql(u8, cmdName, "symbols")) {
 		cmdType = .Symbols;
+	} else if (std.mem.eql(u8, cmdName, "set-reg")) {
+		cmdType = .SetRegister;
+	} else if (std.mem.eql(u8, cmdName, "set-mem")) {
+		cmdType = .SetMemory;
 	} else {
 		return ParseCommandError.InvalidCommand;
 	}
@@ -72,6 +74,7 @@ pub fn parseCommand(input: []const u8) !Command {
 	var regValue: ?u32 = null;
 	var fRegValue: ?f32 = null;
 	var memValue: ?u64 = null;
+	var memValueStr: ?[]const u8 = null;
 	var format: ?OutputFormat = null;
 
 	var register: ?[]const u8 = null;
@@ -96,11 +99,19 @@ pub fn parseCommand(input: []const u8) !Command {
 	}
 
 	var memoryAddress: ?u32 = null;
+	var memoryAddressName: ?[]const u8 = null; // The name for a memory address, either as a label or a segment name
 	if (cmdType == .GetMemory or cmdType == .SetMemory) {
 		const memAddrStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
-		memoryAddress = try std.fmt.parseInt(u32, memAddrStr, 0); // Auto-detect base (hex with 0x, dec otherwise)
+		if (std.fmt.parseInt(u32, memAddrStr, 0)) |addr| {
+			memoryAddress = addr;
+		} else |_| {
+			// If parsing as number fails, treat it as a label or segment name
+			std.debug.print("Parsing memory address as label/segment name: {s}\n", .{memAddrStr});
+			memoryAddressName = memAddrStr;
+		}
 
 		if (cmdType == .GetMemory) {
+			// memory <address|label|segment> <length> [format]
 			const memLenStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
 			memoryLength = try std.fmt.parseInt(u32, memLenStr, 10);
 
@@ -115,6 +126,7 @@ pub fn parseCommand(input: []const u8) !Command {
 				return ParseCommandError.InvalidFormatting;
 			}
 		} else if (cmdType == .SetMemory) {
+			// set-mem <address> <value> <size>
 			const valueStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
 			memValue = try std.fmt.parseInt(u64, valueStr, 0); // Auto-detect base (hex with 0x, dec otherwise)
 
@@ -128,14 +140,46 @@ pub fn parseCommand(input: []const u8) !Command {
 		}
 	}
 
+	if (cmdType == .Read) {
+		// read <address|label> <length>
+		const memAddrStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
+		if (std.fmt.parseInt(u32, memAddrStr, 0)) |addr| {
+			memoryAddress = addr;
+		} else |_| {
+			// If parsing as number fails, treat it as a label
+			std.debug.print("Parsing memory address as label: {s}\n", .{memAddrStr});
+			memoryAddressName = memAddrStr;
+		}
+
+		const memLenStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
+		memoryLength = try std.fmt.parseInt(u32, memLenStr, 10);
+	}
+
+	if (cmdType == .Write) {
+		// write <address> <label> <str>
+		const memAddrStr = splitIter.next() orelse return ParseCommandError.InvalidArgument;
+		memoryAddress = try std.fmt.parseInt(u32, memAddrStr, 0);
+		memoryAddressName = splitIter.next() orelse return ParseCommandError.InvalidArgument;
+		memValueStr = splitIter.rest();
+	}
+
+	if (cmdType == .Dump) {
+		// Make sure there is nothing else after "dump"
+		if (splitIter.next() == null) {
+			return ParseCommandError.InvalidFormatting;
+		}
+	}
+
 	return Command{
 		.cmdType = cmdType,
 		.register = register,
 		.memoryAddress = memoryAddress,
+		.memoryAddressName = memoryAddressName,
 		.memoryLength = memoryLength,
 		.regValue = regValue,
 		.fRegValue = fRegValue,
 		.memValue = memValue,
+		.memValueStr = memValueStr,
 		.format = format
 	};
 }

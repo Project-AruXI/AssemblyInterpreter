@@ -159,19 +159,13 @@ pub const AruMemory = struct {
 		try this.symbolMap.put(symbol, value);
 	}
 
+	/// Retrieves the address associated with a label from the symbol map.
+	/// The label may be a user-defined label or a predefined segment label ("data", "text", "heap", "stack").
+	/// If the label is not found in the symbol map, it returns an error.
 	pub fn getAddress(this: *AruMemory, label: []const u8) !u32 {
 		const addr = this.symbolMap.get(label);
 		if (addr) |a| {
-			return a.*;
-		} else {
-			return MemoryError.LabelNotFound;
-		}
-	}
-
-	pub fn getValue(this: *AruMemory, symbol: []const u8) !u32 {
-		const value = this.symbolMap.get(symbol);
-		if (value) |v| {
-			return v.*;
+			return a;
 		} else {
 			return MemoryError.LabelNotFound;
 		}
