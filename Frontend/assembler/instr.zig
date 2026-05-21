@@ -2,54 +2,9 @@
 
 const std = @import("std");
 
+pub const Opcodes = @import("opcodes");
+pub const Arch = @import("arch");
 
-pub const InstrOp = enum {
-	ADD,
-	ADDS,
-	SUB,
-	SUBS,
-	MUL,
-	SMUL,
-	DIV,
-	SDIV,
-	OR,
-	AND,
-	XOR,
-	NOT,
-	LSL,
-	LSR,
-	ASR,
-	CMP,
-	MV,
-	MVN,
-	SXB,
-	SXH,
-	UXB,
-	UXH,
-	LD,
-	LDB,
-	LDBS,
-	LDBZ,
-	LDH,
-	LDHS,
-	LDHZ,
-	STR,
-	STRB,
-	STRH,
-	UB,
-	UBR,
-	B,
-	CALL,
-	RET,
-	NOP,
-	SYSCALL,
-};
-
-pub const Reg = enum {
-	X0, X1, X2, X3, X4, X5, X6, X7, X8, X9, X10, X11, X12, X13, X14, X15,
-	X16, X17, X18, X19, X20, X21, X22, X23, X24, X25, X26, X27, X28, X29, X30, 
-	SP, IR
-};
 
 pub const InstrError = error {
 	UnimplementedInstructionEncoding,
@@ -58,29 +13,13 @@ pub const InstrError = error {
 };
 
 pub const I_Instr = struct {
-	instrOp: InstrOp,
-	rd: Reg,
-	rs: Reg,
+	instrOp: Opcodes.Opcode,
+	rd: Arch.IntReg,
+	rs: Arch.IntReg,
 	imm14: u16,
 
 	pub fn encode(this: I_Instr) !u32 {
-		var opcode: u8 = 0b00000000;
-
-		switch (this.instrOp) {
-			.ADD, .NOP => opcode = 0b10000000,
-			.ADDS => opcode = 0b10001000,
-			.SUB, .MVN => opcode = 0b10010000,
-			.SUBS, .CMP => opcode = 0b10011000,
-			.OR => opcode = 0b01000000,
-			.AND => opcode = 0b01000010,
-			.XOR => opcode = 0b01000100,
-			.NOT => opcode = 0b01000110,
-			.LSL => opcode = 0b01001000,
-			.LSR => opcode = 0b01001010,
-			.ASR => opcode = 0b01001100,
-			.MV => opcode = 0b10000100,
-			else => return InstrError.UnimplementedInstructionEncoding
-		}
+		const opcode: u8 = @intFromEnum(this.instrOp);
 
 		// By using intFromEnum, it is assumed that .rd and .rs are assigned the proper registers
 		// For example, some instructions may use XZ as a default/preset register, and the parser should assign .rd or .rs to XZ accordingly
@@ -97,32 +36,13 @@ pub const I_Instr = struct {
 };
 
 pub const R_Instr = struct {
-	instrOp: InstrOp,
-	rd: Reg,
-	rs: Reg,
-	rr: Reg,
+	instrOp: Opcodes.Opcode,
+	rd: Arch.IntReg,
+	rs: Arch.IntReg,
+	rr: Arch.IntReg,
 
 	pub fn encode(this: R_Instr) !u32 {
-		var opcode: u8 = 0b00000000;
-
-		switch (this.instrOp) {
-			.ADD => opcode = 0b10000001,
-			.ADDS => opcode = 0b10001001,
-			.SUB => opcode = 0b10010001,
-			.SUBS, .CMP => opcode = 0b10011001,
-			.MUL => opcode = 0b10100000,
-			.SMUL => opcode = 0b10100010,
-			.DIV => opcode = 0b10101000,
-			.SDIV => opcode = 0b10101010,
-			.OR, .MV => opcode = 0b01000001,
-			.AND => opcode = 0b01000011,
-			.XOR => opcode = 0b01000101,
-			.NOT => opcode = 0b01000111,
-			.LSL => opcode = 0b01001001,
-			.LSR => opcode = 0b01001011,
-			.ASR => opcode = 0b01001101,
-			else => return InstrError.UnimplementedInstructionEncoding
-		}
+		const opcode: u8 = @intFromEnum(this.instrOp);
 
 		const rd: u8 = @intFromEnum(this.rd);
 		const rs: u8 = @intFromEnum(this.rs);
@@ -138,9 +58,9 @@ test "R Instr Encoding" {
 	// add x5, x10, x15
 	const addInstr = R_Instr{
 		.instrOp = .ADD,
-		.rd = .X5,
-		.rs = .X10,
-		.rr = .X15,
+		.rd = .x5,
+		.rs = .x10,
+		.rr = .x15,
 	};
 
 	const encoding = try addInstr.encode();
@@ -153,28 +73,14 @@ test "R Instr Encoding" {
 
 
 pub const M_Instr = struct {
-	instrOp: InstrOp,
-	rd: Reg,
-	rs: Reg,
-	rr: Reg,
+	instrOp: Opcodes.Opcode,
+	rd: Arch.IntReg,
+	rs: Arch.IntReg,
+	rr: Arch.IntReg,
 	simm9: i9,
 
 	pub fn encode(this: M_Instr) !u32 {
-		var opcode: u8 = 0b00000000;
-
-		switch (this.instrOp) {
-			.LD => opcode = 0b00010100,
-			.LDB => opcode = 0b00110100,
-			.LDBS => opcode = 0b01010100,
-			.LDBZ => opcode = 0b01110100,
-			.LDH => opcode = 0b10010100,
-			.LDHS => opcode = 0b10110100,
-			.LDHZ => opcode = 0b11010100,
-			.STR => opcode = 0b00011100,
-			.STRB => opcode = 0b00111100,
-			.STRH => opcode = 0b01011100,
-			else => return InstrError.UnimplementedInstructionEncoding
-		}
+		const opcode: u8 = @intFromEnum(this.instrOp);
 
 		const rd: u8 = @intFromEnum(this.rd);
 		const rs: u8 = @intFromEnum(this.rs);
@@ -193,9 +99,9 @@ test "M Instr Encoding" {
 	// ld x10, [sp, #16]
 	const ldInstr0 = M_Instr{
 		.instrOp = .LD,
-		.rd = .X10,
-		.rs = .SP,
-		.rr = .X30,
+		.rd = .x10,
+		.rs = .sp,
+		.rr = .x30,
 		.simm9 = 16,
 	};
 
@@ -207,9 +113,9 @@ test "M Instr Encoding" {
 	// ld x0, [x10], x2
 	const ldInstr1 = M_Instr{
 		.instrOp = .LD,
-		.rd = .X0,
-		.rs = .X10,
-		.rr = .X2,
+		.rd = .x0,
+		.rs = .x10,
+		.rr = .x2,
 		.simm9 = 0,
 	};
 
@@ -221,9 +127,9 @@ test "M Instr Encoding" {
 	// str x5, [x20]
 	const strInstr = M_Instr{
 		.instrOp = .STR,
-		.rd = .X5,
-		.rs = .X20,
-		.rr = .X30,
+		.rd = .x5,
+		.rs = .x20,
+		.rr = .x30,
 		.simm9 = 0,
 	};
 
@@ -250,13 +156,15 @@ test "M Instr Encoding" {
 // };
 
 pub const S_Instr = struct {
-	instrOp: InstrOp,
-	rd: Reg,
-	rs: Reg,
+	instrOp: Opcodes.SysSubOp,
+	rd: Arch.IntReg,
+	rs: Arch.IntReg,
 
 	pub fn encode(this: S_Instr) !u32 {
+		const opcode = @intFromEnum(Opcodes.Opcode.SYS);
+
 		if (this.instrOp == .SYSCALL) {
-			return 0b1011111_0_000100000_00000_00000_00000;
+			return (@as(u32, opcode) << 24) | (@as(u32, @intFromEnum(this.instrOp)) << 19);
 		} else {
 			return InstrError.UnimplementedInstructionEncoding;
 		}

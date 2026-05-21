@@ -151,13 +151,18 @@ const TokenParser = struct {
 			if (!self.consumeType(.RPAREN)) return ExprError.InvalidExpression;
 			return v;
 		}
-		// skip IMM token if present
-		if (self.consumeType(.IMM)) {}
 		if (self.i >= self.toks.len) return ExprError.InvalidExpression;
 		const tok = self.toks[self.i];
 		if (tok.tokType == .INTEGER) {
 			self.i += 1;
 			return try parseLexNumber(tok.lexeme);
+		}
+		if (tok.tokType == .IMM) {
+			self.i += 1;
+			if (tok.lexeme.len > 0 and tok.lexeme[0] == '#') {
+				return try parseLexNumber(tok.lexeme[1..]);
+			}
+			return ExprError.InvalidExpression;
 		}
 		return ExprError.InvalidExpression;
 	}
@@ -258,18 +263,17 @@ fn applySize(v: u64, size: ExprSize) u64 {
 	}
 }
 
-	pub fn parseEval(exprToks: []const Token.Token, size: ExprSize) ExprError!u64 {
-		var p = TokenParser{ .toks = exprToks, .i = 0 };
-		const v = try p.parseExpr();
-		if (p.i != p.toks.len) return ExprError.InvalidExpression;
-		return applySize(v, size);
-	}
+pub fn parseEval(exprToks: []const Token.Token, size: ExprSize) ExprError!u64 {
+	var p = TokenParser{ .toks = exprToks, .i = 0 };
+	const v = try p.parseExpr();
+	if (p.i != p.toks.len) return ExprError.InvalidExpression;
+	return applySize(v, size);
+}
 
-	test "expr basic examples" {
+test "expr basic examples" {
 	// #2
 	const toks1 = [_]Token.Token{
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "2", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#2", .tokType = .IMM }
 	};
 	try std.testing.expectEqual(2, try parseEval(toks1[0..], .U14));
 
@@ -329,11 +333,9 @@ fn applySize(v: u64, size: ExprSize) u64 {
 
 	// #2 + #4
 	const toks8 = [_]Token.Token{
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "2", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#2", .tokType = .IMM },
 		Token.Token{ .lexeme = "+", .tokType = .PLUS },
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "4", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#4", .tokType = .IMM },
 	};
 	try std.testing.expectEqual(6, try parseEval(toks8[0..], .U14));
 
@@ -374,8 +376,7 @@ fn applySize(v: u64, size: ExprSize) u64 {
 
 test "imm literal" {
 	const toks1 = [_]Token.Token{
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "2", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#2", .tokType = .IMM },
 	};
 	try std.testing.expectEqual(2, try parseEval(toks1[0..], .U14));
 }
@@ -442,11 +443,9 @@ test "unary minus plus" {
 
 test "imm add" {
 	const toks8 = [_]Token.Token{
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "2", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#2", .tokType = .IMM },
 		Token.Token{ .lexeme = "+", .tokType = .PLUS },
-		Token.Token{ .lexeme = "#", .tokType = .IMM },
-		Token.Token{ .lexeme = "4", .tokType = .INTEGER },
+		Token.Token{ .lexeme = "#4", .tokType = .IMM },
 	};
 	try std.testing.expectEqual(6, try parseEval(toks8[0..], .U14));
 }
@@ -507,5 +506,5 @@ test "s24 sign extend" {
 
 test "s19 sign extend" {
 	const toks16 = [_]Token.Token{ Token.Token{ .lexeme = "0x40000", .tokType = .INTEGER } };
-	try std.testing.expectEqual(0xFFFFFFFFFFC0000, try parseEval(toks16[0..], .S19));
+	try std.testing.expectEqual(0xFFFFFFFFFFFC0000, try parseEval(toks16[0..], .S19));
 }

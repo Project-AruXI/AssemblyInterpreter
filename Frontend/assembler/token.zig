@@ -2,34 +2,34 @@
 
 pub const TokenType = enum {
 	EOL,
-	NL,
-	FLOAT,
-	COMMA,
-	STRING,
-	CHAR,
-	PLUS,
-	MINUS,
-	ASTERISK,
-	DIVIDE,
-	LPAREN,
-	RPAREN,
-	LSQBRACKET,
-	RSQBRACKET,
-	LBRACKET,
-	RBRACKET,
-	IMM,
-	BITWISE_AND,
-	BITWISE_OR,
-	BITWISE_XOR,
-	BITWISE_NOT,
-	SHIFT_LEFT,
-	SHIFT_RIGHT,
-	REGISTER,
-	IDENTIFIER,
-	LABEL,
-	INTEGER,
-	LP,
-	DIRECTIVE,
+	NL, // \n
+	FLOAT, // <float>
+	COMMA, // ,
+	STRING, // "<string>"
+	CHAR, // '<char>'
+	PLUS, // +
+	MINUS, // -
+	ASTERISK, // *
+	DIVIDE, // /
+	LPAREN, // (
+	RPAREN, // )
+	LSQBRACKET, // [
+	RSQBRACKET, // ]
+	LBRACKET, // {
+	RBRACKET, // }
+	IMM, // #<num>
+	BITWISE_AND, // &
+	BITWISE_OR, // |
+	BITWISE_XOR, // ^
+	BITWISE_NOT, // ~
+	SHIFT_LEFT, // <<
+	SHIFT_RIGHT, // >>
+	REGISTER, // <reg>
+	IDENTIFIER, // <identifier>
+	LABEL, // <label>:
+	INTEGER, // <num>
+	LP, // @
+	DIRECTIVE, // .<directive>
 	UNKNOWN
 };
 

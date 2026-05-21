@@ -69,7 +69,7 @@ System Commands (only available if `--allow-system` is enabled, use with caution
 - `/set-reg [reg] [value]`: Set register to a specific value
 	- Only registers not allowed to be set is IR and CSTR
 	- Value will be truncated or padded with zeros to fit the register size
-- `/set-mem [address] [value] [length]`: Set memory at address to a specific value
+- `/set-mem [address|label|segment] [value] [length]`: Set memory at address to a specific value
 	- Size can be any number of bytes within 1 to 8
 	- Value will be truncated or padded with zeros to fit the specified size
 

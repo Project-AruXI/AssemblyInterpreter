@@ -165,7 +165,7 @@ pub fn parseCommand(input: []const u8) !Command {
 
 	if (cmdType == .Dump) {
 		// Make sure there is nothing else after "dump"
-		if (splitIter.next() == null) {
+		if (splitIter.next() != null) {
 			return ParseCommandError.InvalidFormatting;
 		}
 	}

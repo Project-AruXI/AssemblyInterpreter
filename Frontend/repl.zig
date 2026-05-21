@@ -216,7 +216,16 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 			try stdout.flush();
 		},
 		.Dump => {
-			// TODO
+			var _a: std.heap.DebugAllocator(.{}) = .init;
+			const allocator = _a.allocator();
+			const cpuState = try aruEngine.cpu.dumpState(allocator);
+
+			const file = try std.fs.cwd().createFile("cpu.dump", .{ .truncate = true });
+			defer file.close();
+			try file.writeAll(cpuState);
+			try stdout.print("CPU state dumped to cpu.dump\n", .{});
+			try stdout.flush();
+			_ = _a.deinit();
 		},
 		.SetRegister => {
 			const regName = cmd.register.?;

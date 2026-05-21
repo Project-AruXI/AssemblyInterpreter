@@ -2,8 +2,9 @@
 
 const std = @import("std");
 const Token = @import("token.zig");
-const _instr = @import("instr.zig");
-const _directive = @import("directive.zig");
+const Instr = @import("instr.zig");
+const Opcodes = Instr.Opcodes;
+const Directive = @import("directive.zig");
 const Expr = @import("expr.zig");
 
 
@@ -14,118 +15,50 @@ pub const ParserError = error{
 };
 
 
-fn parseRegister(regStr: []const u8) !_instr.Reg {
-	// "sp"|"SP" -> .SP
-	// "ir"|"IR" -> .IR
-	// "x0"|"X0" - "x30"| "X30" -> .X0 - .X30
-	// "a0"|"A0" - "a9"|"A9" -> .X0 - .X9 (alias for x0-x9)
-	// "xr"|"XR" -> .X0
-	// "c0"|"C0" - "c4"|"C4" -> .X12 - .X16 (alias for x12-x16)
-	// "s0"|"S0" - "s10"|"S10" -> .X17 - .X27 (alias for x17-x27)
-	// "lr"|"LR" -> .X28 (alias for x28)
-	// "xb"|"XB" -> .X29 (alias for x29)
-	// "xz"|"XZ" -> .X30 (alias for x30)
-	// "f0"|"F0" - "f15"|"F15" -> .F0 - .F15 (ignore for now)
-	// "v0"|"V0" - "v5"|"V5" -> .V0 - .V5 (ignore for now)
-
-	if (std.ascii.eqlIgnoreCase(regStr, "sp")) {
-		return _instr.Reg.SP;
-	} else if (std.ascii.eqlIgnoreCase(regStr, "ir")) {
-		return _instr.Reg.IR;
-	} else if (regStr.len >= 2 and (regStr[0] == 'x' or regStr[0] == 'X')) {
-		const regNum = std.fmt.parseInt(u8, regStr[1..], 10) catch {
-			return ParserError.InvalidRegister;
-		};
-		if (regNum <= 30) {
-			return switch (regNum) {
-				0 => _instr.Reg.X0,
-				1 => _instr.Reg.X1,
-				2 => _instr.Reg.X2,
-				3 => _instr.Reg.X3,
-				4 => _instr.Reg.X4,
-				5 => _instr.Reg.X5,
-				6 => _instr.Reg.X6,
-				7 => _instr.Reg.X7,
-				8 => _instr.Reg.X8,
-				9 => _instr.Reg.X9,
-				10 => _instr.Reg.X10,
-				11 => _instr.Reg.X11,
-				12 => _instr.Reg.X12,
-				13 => _instr.Reg.X13,
-				14 => _instr.Reg.X14,
-				15 => _instr.Reg.X15,
-				16 => _instr.Reg.X16,
-				17 => _instr.Reg.X17,
-				18 => _instr.Reg.X18,
-				19 => _instr.Reg.X19,
-				20 => _instr.Reg.X20,
-				21 => _instr.Reg.X21,
-				22 => _instr.Reg.X22,
-				23 => _instr.Reg.X23,
-				24 => _instr.Reg.X24,
-				25 => _instr.Reg.X25,
-				26 => _instr.Reg.X26,
-				27 => _instr.Reg.X27,
-				28 => _instr.Reg.X28,
-				29 => _instr.Reg.X29,
-				else => _instr.Reg.X30
-			};
-		} else {
-			return ParserError.InvalidRegister;
+fn createIInstruction(instrOp: Opcodes.Opcode, tokens: []const Token.Token, alias: ?Opcodes.Alias) !Instr.Instr {
+	// Handle alias-specific syntaxes first
+	if (alias) |a| {
+		switch (a) {
+			.NOP => {
+				if (tokens.len != 0) return ParserError.InvalidSyntax;
+				return Instr.Instr{ .I = .{ .instrOp = instrOp, .rd = .x0, .rs = .x0, .imm14 = 0 } };
+			},
+			.CMPI => {
+				// cmpi <rs>, #<imm>
+				if (tokens.len < 3) return ParserError.InvalidSyntax;
+				const rs = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
+				if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
+				const imm = try Expr.parseEval(tokens[2..], Expr.ExprSize.U14);
+				if (imm > 0x3FFF) return ParserError.InvalidSyntax;
+				const imm14: u16 = @intCast(imm);
+				return Instr.Instr{ .I = .{ .instrOp = instrOp, .rd = .x30, .rs = rs, .imm14 = imm14 } };
+			},
+			.MVNI => {
+				// mvni <rd>, #<imm>
+				if (tokens.len < 3) return ParserError.InvalidSyntax;
+				if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
+				const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
+				const imm = try Expr.parseEval(tokens[2..], Expr.ExprSize.U14);
+				if (imm > 0x3FFF) return ParserError.InvalidSyntax;
+				const imm14: u16 = @intCast(imm);
+				return Instr.Instr{ .I = .{ .instrOp = instrOp, .rd = rd, .rs = .x30, .imm14 = imm14 } };
+			},
+			else => {}
 		}
-	} else if (regStr.len >= 2 and (regStr[0] == 'a' or regStr[0] == 'A')) {
-		const regNum = std.fmt.parseInt(u8, regStr[1..], 10) catch {
-			return ParserError.InvalidRegister;
-		};
-		if (regNum <= 9) {
-			return switch (regNum) {
-				0 => _instr.Reg.X0,
-				1 => _instr.Reg.X1,
-				2 => _instr.Reg.X2,
-				3 => _instr.Reg.X3,
-				4 => _instr.Reg.X4,
-				5 => _instr.Reg.X5,
-				6 => _instr.Reg.X6,
-				7 => _instr.Reg.X7,
-				8 => _instr.Reg.X8,
-				else => _instr.Reg.X9
-			};
-		} else {
-			return ParserError.InvalidRegister;
-		}
-	} else {
-		return ParserError.InvalidRegister;
 	}
 
-}
-
-test "Parse register" {
-	try std.testing.expectEqual(_instr.Reg.X0, parseRegister("x0"));
-	try std.testing.expectEqual(_instr.Reg.X1, parseRegister("X1"));
-	try std.testing.expectEqual(_instr.Reg.X2, parseRegister("a2"));
-	try std.testing.expectEqual(_instr.Reg.X3, parseRegister("A3"));
-	try std.testing.expectEqual(_instr.Reg.SP, parseRegister("sp"));
-	try std.testing.expectEqual(_instr.Reg.IR, parseRegister("IR"));
-	try std.testing.expectEqual(ParserError.InvalidRegister, parseRegister("x31"));
-	try std.testing.expectEqual(ParserError.InvalidRegister, parseRegister("y0"));
-}
-
-
-fn createIInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_instr.Instr {
 	// std.debug.print("Creating I-type instruction with op {any} and tokens {any}\n", .{instrOp, tokens});
 	// Most of I-type instruction follow the format of [op] <rd>, <rs>, #<imm>
 	// Exceptions are NOT (not <xd>, #<imm>), MV/MVN (mv/mvn <rd>, #<imm>), and CMP (cmp <rs>, #<imm>)
 
 	switch (instrOp) {
-		.ADD, .ADDS, .SUB, .SUBS, .OR, .AND, 
-		.XOR, .LSL, .LSR, .ASR => {
+		.ADD, .ADDS, .SUB, .SUBS, .OR, .AND, .XOR, .LSL, .LSR, .ASR => {
 			// Format: [op] <rd>, <rs>, #<imm>
 			// Token length must be at least 5 (rd, comma, rs, comma, imm [at least one imm token])
 			if (tokens.len < 5) return ParserError.InvalidSyntax;
-
-			const rd = try parseRegister(tokens[0].lexeme);
+			const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const rs = try parseRegister(tokens[2].lexeme);
+			const rs = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[3].tokType != .COMMA) return ParserError.InvalidSyntax;
 			// Parse immediate
 			// The immediate can be an expression, which is composed by the rest of the tokens after the comma
@@ -134,7 +67,7 @@ fn createIInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 			if (imm > 0x3FFF) return ParserError.InvalidSyntax;
 			const imm14: u16 = @intCast(imm);
 
-			return _instr.Instr{
+			return Instr.Instr{
 				.I = .{
 					.instrOp = instrOp,
 					.rd = rd,
@@ -143,40 +76,20 @@ fn createIInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 				}
 			};
 		},
-		.NOT, .MV, .MVN => {
-			// Format: [op] <rd>, #<imm>
+		.NOT, .MVI => {
+			// Format: op <rd>, #<imm>
 			if (tokens.len < 3) return ParserError.InvalidSyntax;
-
-			const rd = try parseRegister(tokens[0].lexeme);
+			const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
 			const imm = try Expr.parseEval(tokens[2..], Expr.ExprSize.U14);
 			if (imm > 0x3FFF) return ParserError.InvalidSyntax;
 			const imm14: u16 = @intCast(imm);
 
-			return _instr.Instr{
+			return Instr.Instr{
 				.I = .{
 					.instrOp = instrOp,
 					.rd = rd,
-					.rs = .X30,
-					.imm14 = imm14
-				}
-			};
-		},
-		.CMP => {
-			// Format: cmp <rs>, #<imm>
-			if (tokens.len < 3) return ParserError.InvalidSyntax;
-
-			const rs = try parseRegister(tokens[0].lexeme);
-			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const imm = try Expr.parseEval(tokens[2..], Expr.ExprSize.U14);
-			if (imm > 0x3FFF) return ParserError.InvalidSyntax;
-			const imm14: u16 = @intCast(imm);
-
-			return _instr.Instr{
-				.I = .{
-					.instrOp = instrOp,
-					.rd = .X30,
-					.rs = rs,
+					.rs = .x30,
 					.imm14 = imm14
 				}
 			};
@@ -188,7 +101,62 @@ fn createIInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 	}
 }
 
-fn createRInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_instr.Instr {
+test "createIInstruction" {
+	// Normal instruction (addi x5, x10, #20)
+	const instr1 = try createIInstruction(.ADDI, &.{
+		Token.Token{ .tokType = .IDENTIFIER, .lexeme = "x5" },
+		Token.Token{ .tokType = .COMMA, .lexeme = "," },
+		Token.Token{ .tokType = .IDENTIFIER, .lexeme = "x10" },
+		Token.Token{ .tokType = .COMMA, .lexeme = "," },
+		Token.Token{ .tokType = .NUMBER, .lexeme = "20" },
+	}, null);
+	try std.testing.expectEqual(Instr.Arch.IntReg.x5, instr1.I.rd);
+	try std.testing.expectEqual(Instr.Arch.IntReg.x10, instr1.I.rs);
+	try std.testing.expectEqual(20, instr1.I.imm14);
+
+
+	// Aliased instruction (cmpi x0, #0)
+	const instr2 = try createIInstruction(.CMPI, &.{
+		Token.Token{ .tokType = .IDENTIFIER, .lexeme = "x0" },
+		Token.Token{ .tokType = .COMMA, .lexeme = "," },
+		Token.Token{ .tokType = .NUMBER, .lexeme = "0" },
+	}, null);
+	try std.testing.expectEqual(Instr.Arch.IntReg.x0, instr2.I.rd);
+	try std.testing.expectEqual(0, instr2.I.imm14);
+}
+
+fn createRInstruction(instrOp: Opcodes.Opcode, tokens: []const Token.Token, alias: ?Opcodes.Alias) !Instr.Instr {
+	// Handle alias-specific syntaxes first
+	if (alias) |a| {
+		switch (a) {
+			.CMP => {
+				// cmp <rs>, <rr>
+				if (tokens.len != 3) return ParserError.InvalidSyntax;
+				const rs = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
+				if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
+				const rr = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
+				return Instr.Instr{ .R = .{ .instrOp = instrOp, .rd = .x30, .rs = rs, .rr = rr } };
+			},
+			.MV => {
+				// mv <rd>, <rs>  (register form)
+				if (tokens.len != 3) return ParserError.InvalidSyntax;
+				if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
+				const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
+				const rs = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
+				return Instr.Instr{ .R = .{ .instrOp = instrOp, .rd = rd, .rs = rs, .rr = .x30 } };
+			},
+			.MVN => {
+				// mvn <rd>, <rs>
+				if (tokens.len != 3) return ParserError.InvalidSyntax;
+				if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
+				const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
+				const rs = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
+				return Instr.Instr{ .R = .{ .instrOp = instrOp, .rd = rd, .rs = rs, .rr = .x30 } };
+			},
+			else => {}
+		}
+	}
+
 	// std.debug.print("Creating R-type instruction with op {any} and tokens {any}\n", .{instrOp, tokens});
 	// Most of R-type instructions follow the format of [op] <rd>, <rs>, <rr>
 	// Exceptions are NOT (not <rd>, <rs>), MV/MVN (mv/mvn <rd>, <rs>), and CMP (cmp <rs>, <rr>)
@@ -199,14 +167,13 @@ fn createRInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 		.MUL, .SMUL, .DIV, .SDIV => {
 			// Format: [op] <rd>, <rs>, <rr>
 			if (tokens.len != 5) return ParserError.InvalidSyntax;
-
-			const rd = try parseRegister(tokens[0].lexeme);
+			const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const rs = try parseRegister(tokens[2].lexeme);
+			const rs = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[3].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const rr = try parseRegister(tokens[4].lexeme);
+			const rr = Instr.Arch.IntReg.fromString(tokens[4].lexeme) orelse return ParserError.InvalidSyntax;
 
-			return _instr.Instr{
+			return Instr.Instr{
 				.R = .{
 					.instrOp = instrOp,
 					.rd = rd,
@@ -215,37 +182,18 @@ fn createRInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 				}
 			};
 		},
-		.NOT, .MV, .MVN => {
-			// Format: [op] <rd>, <rs>
+		.NOT => {
 			if (tokens.len != 3) return ParserError.InvalidSyntax;
-
-			const rd = try parseRegister(tokens[0].lexeme);
+			const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const rs = try parseRegister(tokens[2].lexeme);
+			const rs = Instr.Arch.IntReg.fromString(tokens[2].lexeme) orelse return ParserError.InvalidSyntax;
 
-			return _instr.Instr{
+			return Instr.Instr{
 				.R = .{
 					.instrOp = instrOp,
 					.rd = rd,
 					.rs = rs,
-					.rr = .X30
-				}
-			};
-		},
-		.CMP => {
-			// Format: cmp <rs>, <rr>
-			if (tokens.len != 3) return ParserError.InvalidSyntax;
-
-			const rs = try parseRegister(tokens[0].lexeme);
-			if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
-			const rr = try parseRegister(tokens[2].lexeme);
-
-			return _instr.Instr{
-				.R = .{
-					.instrOp = instrOp,
-					.rd = .X30,
-					.rs = rs,
-					.rr = rr
+					.rr = .x30
 				}
 			};
 		},
@@ -256,24 +204,7 @@ fn createRInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 	}
 }
 
-fn createIRInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_instr.Instr {
-	// This applies to both I and R type instructions
-	// They are differentiated by whether an immediate exists, for the most part
-	// std.debug.print("Creating IR-type instruction with op {any} and tokens {any}\n", .{instrOp, tokens});
-	
-	const lastToken = tokens[tokens.len - 1];
-	// If last token is a register, then the instruction MAY be R-type
-	// Otherwise it MAY be I-type, since the token is not guaranteed to be fitting of an expression
-
-	_ = parseRegister(lastToken.lexeme) catch {
-		// If the last token is not a register, then the instruction MAY be I-type
-		return try createIInstruction(instrOp, tokens);
-	};
-	// If the last token is a register, then the instruction MAY be R-type
-	return try createRInstruction(instrOp, tokens);
-}
-
-fn createMInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_instr.Instr {
+fn createMInstruction(instrOp: Opcodes.Opcode, tokens: []const Token.Token) !Instr.Instr {
 	// std.debug.print("Creating memory instruction with op {any} and tokens {any}\n", .{instrOp, tokens});
 	// Formats are:
 	// [op] <rd>, [<rs>, #<imm>]
@@ -288,20 +219,11 @@ fn createMInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 	// Note: <imm> can be an expression
 	
 	if (tokens.len < 5) return ParserError.InvalidSyntax;
-
-	const rd = parseRegister(tokens[0].lexeme) catch {
-		// In the case that the first token is not a register, it means the syntax is wrong
-		return ParserError.InvalidSyntax;
-	};
-
+	const rd = Instr.Arch.IntReg.fromString(tokens[0].lexeme) orelse return ParserError.InvalidSyntax;
 	if (tokens[1].tokType != .COMMA) return ParserError.InvalidSyntax;
 	if (tokens[2].tokType != .LBRACKET) return ParserError.InvalidSyntax;
-
-	const rs = parseRegister(tokens[3].lexeme) catch {
-		return ParserError.InvalidSyntax;
-	};
-
-	var rr: _instr.Reg = .X30;
+	const rs = Instr.Arch.IntReg.fromString(tokens[3].lexeme) orelse return ParserError.InvalidSyntax;
+	var rr: Instr.Arch.IntReg = .x30;
 	var simm9: i9 = 0;
 
 	// This is where the pattern changes
@@ -314,9 +236,7 @@ fn createMInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 		} else if (tokens.len == 7) {
 			// [op] <rd>, [<rs>], <rr>
 			if (tokens[5].tokType != .COMMA) return ParserError.InvalidSyntax;
-			rr = parseRegister(tokens[6].lexeme) catch {
-				return ParserError.InvalidSyntax;
-			};
+			rr = Instr.Arch.IntReg.fromString(tokens[6].lexeme) orelse return ParserError.InvalidSyntax;
 		} else {
 			return ParserError.InvalidSyntax;
 		}
@@ -332,7 +252,7 @@ fn createMInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 		return ParserError.InvalidSyntax;
 	}
 
-	return _instr.Instr{
+	return Instr.Instr{
 		.M = .{
 			.instrOp = instrOp,
 			.rd = rd,
@@ -343,166 +263,146 @@ fn createMInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_in
 	};
 }
 
-fn createSInstruction(instrOp: _instr.InstrOp, tokens: []const Token.Token) !_instr.Instr {
+fn createSInstruction(instrOp: Opcodes.SysSubOp, tokens: []const Token.Token) !Instr.Instr {
 	_ = tokens;
 	// std.debug.print("Creating system instruction with op {any} and tokens {any}\n", .{instrOp, tokens});
 	// For now, only SYSCALL exists, and it takes no arguments
-	return _instr.Instr{
+	return Instr.Instr{
 		.S = .{
 			.instrOp = instrOp,
-			.rd = .X0,
-			.rs = .X0
+			.rd = .x0,
+			.rs = .x0
 		}
 	};
 }
 
-
-inline fn getInstrOp(instrName: []const u8) !_instr.InstrOp {
-	var instrOp: _instr.InstrOp = undefined;
-
-	if (std.ascii.eqlIgnoreCase(instrName, "ADD")) {
-		instrOp = _instr.InstrOp.ADD;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "ADDS")) {
-		instrOp = _instr.InstrOp.ADDS;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SUB")) {
-		instrOp = _instr.InstrOp.SUB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SUBS")) {
-		instrOp = _instr.InstrOp.SUBS;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "MUL")) {
-		instrOp = _instr.InstrOp.MUL;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SMUL")) {
-		instrOp = _instr.InstrOp.SMUL;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "DIV")) {
-		instrOp = _instr.InstrOp.DIV;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SDIV")) {
-		instrOp = _instr.InstrOp.SDIV;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "OR")) {
-		instrOp = _instr.InstrOp.OR;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "AND")) {
-		instrOp = _instr.InstrOp.AND;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "XOR")) {
-		instrOp = _instr.InstrOp.XOR;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "NOT")) {
-		instrOp = _instr.InstrOp.NOT;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LSL")) {
-		instrOp = _instr.InstrOp.LSL;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LSR")) {
-		instrOp = _instr.InstrOp.LSR;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "ASR")) {
-		instrOp = _instr.InstrOp.ASR;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "CMP")) {
-		instrOp = _instr.InstrOp.CMP;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "MV")) {
-		instrOp = _instr.InstrOp.MV;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "MVN")) {
-		instrOp = _instr.InstrOp.MVN;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SXB")) {
-		instrOp = _instr.InstrOp.SXB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SXH")) {
-		instrOp = _instr.InstrOp.SXH;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "UXB")) {
-		instrOp = _instr.InstrOp.UXB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "UXH")) {
-		instrOp = _instr.InstrOp.UXH;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LD")) {
-		instrOp = _instr.InstrOp.LD;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDB")) {
-		instrOp = _instr.InstrOp.LDB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDBS")) {
-		instrOp = _instr.InstrOp.LDBS;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDBZ")) {
-		instrOp = _instr.InstrOp.LDBZ;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDH")) {
-		instrOp = _instr.InstrOp.LDH;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDHS")) {
-		instrOp = _instr.InstrOp.LDHS;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "LDHZ")) {
-		instrOp = _instr.InstrOp.LDHZ;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "STR")) {
-		instrOp = _instr.InstrOp.STR;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "STRB")) {
-		instrOp = _instr.InstrOp.STRB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "STRH")) {
-		instrOp = _instr.InstrOp.STRH;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "UB")) {
-		instrOp = _instr.InstrOp.UB;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "UBR")) {
-		instrOp = _instr.InstrOp.UBR;
-	} else if (std.ascii.startsWithIgnoreCase(instrName, "B")) {
-		instrOp = _instr.InstrOp.B;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "CALL")) {
-		instrOp = _instr.InstrOp.CALL;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "RET")) {
-		instrOp = _instr.InstrOp.RET;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "NOP")) {
-		instrOp = _instr.InstrOp.NOP;
-	} else if (std.ascii.eqlIgnoreCase(instrName, "SYSCALL")) {
-		instrOp = _instr.InstrOp.SYSCALL;
-	} else {
-		std.debug.print("Instruction name {s} not recognized\n", .{instrName});
-		return ParserError.UnexpectedToken;
+fn isLastOperandRegister(tokens: []const Token.Token) bool {
+	if (tokens.len == 0) return false;
+	
+	var lastCommaIndex: ?usize = null;
+	for (tokens, 0..) |tok, i| {
+		if (tok.tokType == .COMMA) {
+			lastCommaIndex = i;
+		}
 	}
-
-	return instrOp;
+	
+	if (lastCommaIndex) |idx| {
+		const lastOpTokens = tokens[idx + 1..];
+		if (lastOpTokens.len == 1) {
+			if (Instr.Arch.IntReg.fromString(lastOpTokens[0].lexeme)) |_| {
+				return true;
+			}
+		}
+	} else {
+		if (tokens.len == 1) {
+			if (Instr.Arch.IntReg.fromString(tokens[0].lexeme)) |_| {
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
-fn parseIdentifier(tokens: []const Token.Token) !_instr.Instr {
+pub fn parseInstruction(tokens: []const Token.Token) !Instr.Instr {
+	if (tokens[0].tokType != .IDENTIFIER) return ParserError.UnexpectedToken;
 	// std.debug.print("Parsing identifier...\n", .{});
 
 	const instrName = tokens[0].lexeme;
 
-	const instrOp = try getInstrOp(instrName);
-	var instr: _instr.Instr = undefined;
+	const instrOp: Opcodes.AnyOpcode = Opcodes.stringToOpcode(instrName) orelse {
+		std.debug.print("Unknown instruction: {any}\n", .{instrName});
+		return ParserError.UnexpectedToken;
+	};
+
+	var instr: Instr.Instr = undefined;
 
 	switch (instrOp) {
-		.ADD, .ADDS, .SUB, .SUBS, .OR, .AND, 
-		.XOR, .NOT, .LSL, .LSR, .ASR, .CMP, .MV, .MVN, => {
-			instr = try createIRInstruction(instrOp, tokens[1..]);
-		},
-		.NOP => {
-			instr = _instr.Instr{
-				.I = .{
-					.instrOp = instrOp,
-					.rd = .X30, // Ignored
-					.rs = .X30, // Ignored
-					.imm14 = 0 // Ignored
+		.opcode => |op| {
+			switch (op) {
+				.ADDI, .ADDSI, .SUBI, .SUBSI, .ORI, .ANDI, 
+				.XORI, .LSLI, .LSRI, .ASRI,
+				.NOTI => {
+					const args = tokens[1..];
+					if (isLastOperandRegister(args)) {
+						const rOp = @as(Opcodes.Opcode, @enumFromInt(@intFromEnum(op) + 1));
+						instr = try createRInstruction(rOp, args, null);
+					} else {
+						instr = try createIInstruction(op, args, null);
+					}
+				},
+				.MVI => {
+					const args = tokens[1..];
+					if (isLastOperandRegister(args)) {
+						instr = try createRInstruction(.OR, args, .MV);
+					} else {
+						instr = try createIInstruction(op, args, null);
+					}
+				},
+				.ADD, .ADDS, .SUB, .SUBS, .OR, .AND, 
+				.XOR, .LSL, .LSR, .ASR,
+				.NOT => {
+					const args = tokens[1..];
+					if (!isLastOperandRegister(args)) {
+						const iOp = @as(Opcodes.Opcode, @enumFromInt(@intFromEnum(op) - 1));
+						instr = try createIInstruction(iOp, args, null);
+					} else {
+						instr = try createRInstruction(op, args, null);
+					}
+				},
+				.MUL, .SMUL, .DIV, .SDIV => {
+					instr = try createRInstruction(op, tokens[1..], null);
+				},
+				.LD, .LDB, .LDBS, .LDBZ, .LDH, .LDHS, .LDHZ, .STR, .STRB, .STRH => {
+					instr = try createMInstruction(op, tokens[1..]);
+				},
+				else => {
+					std.debug.print("Parsing for instruction op {any} not yet implemented\n", .{op});
+					return ParserError.UnexpectedToken;
 				}
-			};
+			}
 		},
-		.MUL, .SMUL, .DIV, .SDIV, .SXB, .SXH, .UXB, .UXH, => {
-			instr = try createRInstruction(instrOp, tokens[1..]);
+		.sys => |sysOp| {
+			instr = try createSInstruction(sysOp, tokens[1..]);
 		},
-		.LD, .LDB, .LDBS, .LDBZ, .LDH, .LDHS, .LDHZ, .STR, .STRB, .STRH => {
-			instr = try createMInstruction(instrOp, tokens[1..]);
-		},
-		.SYSCALL => {
-			instr = try createSInstruction(instrOp, tokens[1..]);
-		},
-		else => {
-			std.debug.print("Parsing for instruction op {any} not yet implemented\n", .{instrOp});
+		.fusedf => |fusedfOp| {
+			_ = fusedfOp;
+			std.debug.print("Parsing for fused floating point instruction not yet implemented\n", .{});
 			return ParserError.UnexpectedToken;
+		},
+		.alias => |aliasOp| {
+			const args = tokens[1..];
+			switch (aliasOp) {
+				.NOP => {
+					instr = try createIInstruction(.ADDI, args, .NOP);
+				},
+				.MV => {
+					if (isLastOperandRegister(args)) {
+						instr = try createRInstruction(.OR, args, .MV);
+					} else {
+						instr = try createIInstruction(.MVI, args, null);
+					}
+				},
+				.CMP, .CMPI => {
+					if (isLastOperandRegister(args)) {
+						instr = try createRInstruction(.SUBS, args, .CMP);
+					} else {
+						instr = try createIInstruction(.SUBI, args, .CMPI);
+					}
+				},
+				.MVN, .MVNI => {
+					if (isLastOperandRegister(args)) {
+						instr = try createRInstruction(.SUB, args, .MVN);
+					} else {
+						instr = try createIInstruction(.SUBI, args, .MVNI);
+					}
+				},
+			}
 		}
 	}
-
 	return instr;
 }
 
-
-pub fn parseInstruction(tokens: []const Token.Token) !_instr.Instr {
-	switch (tokens[0].tokType) {
-		.IDENTIFIER => {
-			return parseIdentifier(tokens) catch |err| {
-				std.debug.print("Error parsing identifier: {any}\n", .{err});
-				return err;
-			};
-		},
-		else => return ParserError.UnexpectedToken
-	}
-}
-
-
-
-pub fn parseDirective(tokens: []const Token.Token) !_directive.Directive {
+pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
 	switch (tokens[0].tokType) {
 		.DIRECTIVE => {
 			// For now, assume only directive is SET, format is: `.set symbol, expr`
