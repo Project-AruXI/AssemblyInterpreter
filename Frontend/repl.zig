@@ -316,10 +316,92 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 			try stdout.print("Set memory at address 0x{x} to value 0x{x} ({d}) with length {d} bytes\n", .{addr, value, value, length});			
 		},
 		.Read => {
-			// TODO
+			// TODO: read a string from an address or label
+			var address: u32 = undefined;
+			if (cmd.memoryAddress) |a| {
+				// An address was provided
+				address = a;
+			} else if (cmd.memoryAddressName) |name| {
+				// A label was provided, resolve the address
+				address = aruEngine.mem.getAddress(name) catch |err| {
+					try stdout.print("Error resolving memory address for name {s}: {any}\n", .{name, err});
+					try stdout.flush();
+					return;
+				};
+			}
+
+			const length = cmd.memoryLength.?;
+
+			// Constraints: data must be in data segment
+			if (address >= aruEngine.mem.textSegStart) {
+				try stdout.print("Error: Address 0x{x} is not within the data segment\n", .{address});
+				try stdout.flush();
+				return;
+			}
+			if (address + length >= aruEngine.mem.textSegStart) {
+				try stdout.print("Error: Address 0x{x} + length {d} is not within the data segment\n", .{address, length});
+				try stdout.flush();
+				return;
+			}
+
+			// Read until null terminator or length provided as a string
+			for (address..address + length) |addr| {
+				const byte = aruEngine.mem.readByte(@as(u32, @intCast(addr))) catch |err| {
+					try stdout.print("Error reading from memory: {any}\n", .{err});
+					try stdout.flush();
+					return;
+				};
+				if (byte == 0) break;
+				try stdout.print("{c}", .{byte});
+			}
+			try stdout.print("\n", .{});
+			try stdout.flush();
+	
 		},
 		.Write => {
-			// TODO
+			const label = cmd.memoryAddressName.?;
+			const address = cmd.memoryAddress.?;
+			const _str = cmd.memValueStr.?;
+			// _str is "....", need to take out the quotation marks and write the characters with null terminator
+			const str = std.mem.trim(u8, _str, "\"");
+
+			// Constraints: data must be within data segment, label should not exist
+			if (address >= aruEngine.mem.textSegStart) {
+				try stdout.print("Error: Address 0x{x} is not within the data segment\n", .{address});
+				try stdout.flush();
+				return;
+			}
+			if (address + str.len >= aruEngine.mem.textSegStart) {
+				try stdout.print("Error: Address 0x{x} + length {d} is not within the data segment\n", .{address, str.len});
+				try stdout.flush();
+				return;
+			}
+			if (aruEngine.mem.symbolMap.get(label) != null) {
+				try stdout.print("Error: Label {s} already exists\n", .{label});
+				try stdout.flush();
+				return;
+			}
+
+			for (str, 0..) |ch, i| {
+				aruEngine.mem.writeByte(address + @as(u32, @intCast(i)), ch) catch |err| {
+					try stdout.print("Error writing to memory at address 0x{x}: {any}\n", .{address + i, err});
+					try stdout.flush();
+					return;
+				};
+			}
+			aruEngine.mem.writeByte(address + @as(u32, @intCast(str.len)), 0) catch |err| {
+				try stdout.print("Error writing to memory at address 0x{x}: {any}\n", .{address + str.len, err});
+				try stdout.flush();
+				return;
+			};
+
+			aruEngine.mem.addLabel(label, address) catch |err| {
+				try stdout.print("Error adding label {s} at address 0x{x}: {any}\n", .{label, address, err});
+				try stdout.flush();
+				return;
+			};
+			try stdout.print("Wrote string '{s}' to memory at address 0x{x} and associated it with label '{s}'\n", .{str, address, label});
+			try stdout.flush();
 		},
 		.Symbols => {
 			try stdout.print("Symbol map:\n", .{});
@@ -361,6 +443,8 @@ fn processCommand(input: []const u8, aruEngine: *Engine.AruEngine, allowSystem: 
 		try stdout.print("/register [reg] - Print value of specific register\n", .{});
 		try stdout.print("/memory [address] [length] [format?(hex|dec|bin)] - Print memory contents\n", .{});
 		try stdout.print("/symbols - Print symbol map\n", .{});
+		try stdout.print("/read [address|label] [length] - Read length bytes from memory starting at address as a string\n", .{});
+		try stdout.print("/write [address] [label] [string] - Write a string to memory at the specified address and associate it with a label\n", .{});
 		try stdout.print("/dump - Dump CPU state and memory contents to a file\n", .{});
 		try stdout.print("/help - Show this help message\n", .{});
 		try stdout.print("/exit - Exit the REPL\n", .{});

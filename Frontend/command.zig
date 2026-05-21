@@ -8,8 +8,8 @@ pub const CommandType = enum {
 	GetRegister,
 	GetMemory,
 	Dump,
-	Write,
 	Read,
+	Write,
 	Symbols,
 	SetRegister,
 	SetMemory,
@@ -56,10 +56,10 @@ pub fn parseCommand(input: []const u8) !Command {
 		cmdType = .GetMemory;
 	} else if (std.mem.eql(u8, cmdName, "dump")) {
 		cmdType = .Dump;
-	} else if (std.mem.eql(u8, cmdName, "write")) {
-		cmdType = .Write;
 	} else if (std.mem.eql(u8, cmdName, "read")) {
 		cmdType = .Read;
+	} else if (std.mem.eql(u8, cmdName, "write")) {
+		cmdType = .Write;
 	} else if (std.mem.eql(u8, cmdName, "symbols")) {
 		cmdType = .Symbols;
 	} else if (std.mem.eql(u8, cmdName, "set-reg")) {
