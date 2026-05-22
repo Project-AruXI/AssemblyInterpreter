@@ -2,7 +2,6 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-// const Engine = @import("Engine");
 const args = @import("args");
 const App = args.App;
 const Arg = args.Arg;
@@ -27,15 +26,14 @@ fn parseArgs() !*Config.CliConfig {
 	defer cliargs.deinit();
 
 	var cli = cliargs.rootCommand();
-	
+
 	try cli.addArgs(&[_]Arg{
 		Arg.singleValueOption("mem-size", null, "Memory size to be allocated."),
 		Arg.singleValueOption("stack-size", null, "Stack size to be allocated."),
 		Arg.singleValueOption("heap-size", null, "Heap size to be allocated."),
-		Arg.booleanOption("avext", null, "Whether to enable AVX extensions."),
+		Arg.booleanOption("avext", null, "Whether to enable AVExt."),
 		Arg.booleanOption("allow-system", null, "Whether to allow system calls (REPL only)."),
-		Arg.booleanOption("version", 'v', "Print version information and exit."),
-		Arg.booleanOption("help", 'h', "Show help message and exit.")
+		Arg.booleanOption("version", 'v', "Print version information and exit.")
 	});
 
 	try cli.addArg(Arg.positional("file", "The assembly file to execute", null));
@@ -52,7 +50,8 @@ fn parseArgs() !*Config.CliConfig {
 		16 * KB,
 		false,
 		false,
-		null
+		null,
+		std.heap.page_allocator
 	);
 
 	if (matches.containsArg("version")) {
@@ -67,7 +66,7 @@ fn parseArgs() !*Config.CliConfig {
 		try stdout.print("  --mem-size <size>       Memory size to be allocated.\n", .{});
 		try stdout.print("  --stack-size <size>    Stack size to be allocated.\n", .{});
 		try stdout.print("  --heap-size <size>     Heap size to be allocated.\n", .{});
-		try stdout.print("  --avext                Whether to enable AVX extensions.\n", .{});
+		try stdout.print("  --avext                Whether to enable AVExt.\n", .{});
 		try stdout.print("  --allow-system         Whether to allow system calls (REPL only).\n", .{});
 		try stdout.print("  -v, --version          Print version information and exit.\n", .{});
 		try stdout.flush();
@@ -101,12 +100,13 @@ fn parseArgs() !*Config.CliConfig {
 	cliConfig.enableAVExt = matches.containsArg("avext");
 	cliConfig.allowSystem = matches.containsArg("allow-system");
 
-	if (matches.getSingleValue("file")) |filePath| {
+	if (matches.getSingleValue("file")) |_filePath| {
 		// Will run as file interpreter, invalid when also passing allow-system
 		if (cliConfig.allowSystem) {
 			return error.InvalidArgument;
 		}
-		cliConfig.filePath = filePath;
+		// Make a copy of `filePath`
+		cliConfig.filePath = try cliConfig.allocator.dupe(u8, _filePath);
 	} else {
 		cliConfig.filePath = null;
 	}
@@ -132,4 +132,9 @@ pub fn main() !void {
 	} else {
 		try interpreter.executeFile(cliConfig);
 	}
+
+	if (cliConfig.filePath != null) {
+		cliConfig.allocator.free(cliConfig.filePath.?);
+	}
+	std.heap.page_allocator.destroy(cliConfig);
 }
