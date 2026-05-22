@@ -40,6 +40,7 @@ pub const CPUError = error{
 	MemoryAccessViolation,
 	IllegalRegisterAccess,
 	DivisionByZero,
+	HaltState
 };
 
 pub const IntrepIAruCPU = struct {
@@ -378,13 +379,15 @@ pub const IntrepIAruCPU = struct {
 	fn executeSType(this: *IntrepIAruCPU, rd: u32, rs: u32, subop: u32) !void {
 		std.debug.print("Executing S-type instruction with rd=x{d}, rs=x{d}, subop={x}\n", .{rd, rs, subop});
 
-		// For now, only SYS instruction is syscall
 		if (subop == @intFromEnum(SysSubOp.SYSCALL)) {
 			// Syscall number is stored in x0
 			std.debug.print("Executing SYS instruction (system call) with syscall number of {d}\n", .{this.gpRegs[0]});
 			// For now, we will just print the syscall number and not actually implement any syscalls
 			// Syscalls will be delegated to the OS module, which will handle the actual implementation of each syscall
 			try OS.handleSyscall(.{.stype = this.gpRegs[0]}, this.mem);
+		} else if (subop == @intFromEnum(SysSubOp.HLT)) {
+			std.debug.print("Executing HLT instruction, halting CPU.\n", .{});
+			return CPUError.HaltState;
 		} else {
 			std.debug.print("Invalid S-type instruction with subop {x} ({})\n", .{subop, @as(SysSubOp, @enumFromInt(subop))});
 			return CPUError.InvalidInstruction;

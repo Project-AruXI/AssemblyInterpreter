@@ -165,6 +165,8 @@ pub const S_Instr = struct {
 
 		if (this.instrOp == .SYSCALL) {
 			return (@as(u32, opcode) << 24) | (@as(u32, @intFromEnum(this.instrOp)) << 19);
+		} else if (this.instrOp == .HLT) {
+			return (@as(u32, opcode) << 24) | (@as(u32, @intFromEnum(this.instrOp)) << 19);
 		} else {
 			return InstrError.UnimplementedInstructionEncoding;
 		}
