@@ -316,7 +316,6 @@ fn executeCommand(cmd: Command.Command, aruEngine: *Engine.AruEngine, allowSyste
 			try stdout.print("Set memory at address 0x{x} to value 0x{x} ({d}) with length {d} bytes\n", .{addr, value, value, length});			
 		},
 		.Read => {
-			// TODO: read a string from an address or label
 			var address: u32 = undefined;
 			if (cmd.memoryAddress) |a| {
 				// An address was provided
@@ -621,7 +620,7 @@ pub fn startRepl(cliConfig: *Config.CliConfig) !void {
 
 
 	if (cliConfig.enableAVExt and !((&aruEngine).containsAVExt())) {
-		std.debug.print("Warning: AVX extensions enabled in config but not supported by engine\n", .{});
+		std.debug.print("Warning: AVExt enabled in config but not supported by engine\n", .{});
 		return;
 	}
 

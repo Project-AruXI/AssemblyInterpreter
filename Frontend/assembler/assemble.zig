@@ -7,7 +7,7 @@ const _directive = @import("directive.zig");
 
 
 pub fn assemble(instrStr: []const u8) !u32 {
-	std.debug.print("Assembling {s}", .{instrStr});
+	std.debug.print("Assembling {s}\n", .{instrStr});
 
 	var gpa: std.heap.DebugAllocator(.{}) = .init;
 	defer _ = gpa.deinit();
