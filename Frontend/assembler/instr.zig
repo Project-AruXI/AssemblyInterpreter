@@ -66,9 +66,6 @@ test "R Instr Encoding" {
 	const encoding = try addInstr.encode();
 	const expectedEncoding = 0b1000000_0_000000000_01010_01111_00101;
 	try std.testing.expectEqual(expectedEncoding, encoding);
-
-
-	// TODO
 }
 
 

@@ -40,7 +40,7 @@ pub fn build(b: *std.Build) void {
     },
   });
 
-  // Engine module (Backend)
+  // Engine module
   const engineModule = b.addModule("Engine", .{
     .root_source_file = b.path("Backend/root.zig"),
     .target = target,
@@ -79,10 +79,7 @@ pub fn build(b: *std.Build) void {
     },
   });
 
-  // Top-level steps so the user can run specific targets:
-  //  - `zig build build-engine` to build native engine library
-  //  - `zig build build-interpreter` to build the interpreter
-  b.step("engine", "Build engine (native)").dependOn(&installEngine.step);
+  b.step("engine", "Build engine (standalone)").dependOn(&installEngine.step);
   b.step("interpreter", "Build interpreter").dependOn(&installExe.step);
 
   const runStep = b.step("run", "Build and run interpreter");

@@ -39,7 +39,7 @@ x1 <- 2
 x2 <- 44
 > /exit
 Exiting REPL...
-$ 
+$ |
 ```
 
 Commands:
@@ -58,9 +58,11 @@ Commands:
 	- The string will be null-terminated in memory
 	- The label will be added to the label map with the address it was written to
 		- The address is enforced to be within the data segment, otherwise it will error out
+		- The length of the string plus the address must be within the data segment, otherwise it will error out
 		- If a label with the same name already exists, it will error out to prevent accidental overwrites
 - `/read [address|label] [length]`: Read length bytes from memory starting at address and print it as a string
 	- The address must be within the data segment, otherwise it will error out
+	- The length of the string plus the address must be within the data segment, otherwise it will error out
 	- If a label is provided instead of an address, it will resolve the label to an address using the label map
 	- It will read until it encounters a null terminator or reaches the specified length, whichever comes first
 - `/symbols`: Print all symbols in the symbol map with their associated addresses/values
@@ -78,6 +80,10 @@ Disallowed Instructions:
 - Branching instructions
 - Privileged instructions
 
+#### Directives
+
+
+
 
 ### File
 
@@ -94,9 +100,9 @@ For repl:
 > /write 0x0 greeting "Hello, World!"
 <Wrote "Hello, World!" to memory at address 0x0 and associated it with label "greeting">
 > /read greeting 13
-"Hello, World!"
+Hello, World!
 > /read 0x0 13
-"Hello, World!"
+Hello, World!
 ```
 
 For file:
