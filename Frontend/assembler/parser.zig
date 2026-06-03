@@ -402,22 +402,220 @@ pub fn parseInstruction(tokens: []const Token.Token) !Instr.Instr {
 	return instr;
 }
 
+
+fn exprTokToString(tokens: []const Token.Token, allocator: std.mem.Allocator) ![]const u8 {
+	var exprStringList = try std.ArrayList([]const u8).initCapacity(allocator, tokens.len);
+	defer exprStringList.deinit(allocator);
+
+	for (tokens) |tok| {
+		try exprStringList.append(allocator, tok.lexeme);
+	}
+
+	return try std.mem.join(allocator, "", exprStringList.items);
+}
+
+test "ExprTokToString" {
+	const exprTokens = &.{
+		Token.Token{.lexeme = "3", .tokType = .INTEGER},
+		Token.Token{.lexeme = "+", .tokType = .PLUS},
+		Token.Token{.lexeme = "6", .tokType = .INTEGER}
+	};
+
+	const expectedExpr = "3+6";
+
+	const expr = try exprTokToString(exprTokens, std.testing.allocator);
+	try std.testing.expectEqualStrings(expectedExpr, expr);
+	std.testing.allocator.free(expr);
+}
+
+fn equalStringArrayLists(list1: std.ArrayList([]const u8), list2: std.ArrayList([]const u8)) bool {
+	const slice1 = list1.items;
+	const slice2 = list2.items;
+
+	if (slice1.len != slice2.len) return false;
+
+	for (slice1, slice2) |str1,str2| {
+		if (!std.mem.eql(u8, str1, str2)) return false;
+	}
+
+	return true;
+}
+
 pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
-	switch (tokens[0].tokType) {
-		.DIRECTIVE => {
-			// For now, assume only directive is SET, format is: `.set symbol, expr`
+	var dirType:Directive.DirectiveType = undefined;
+	var symbol:?[]const u8 = null;
+	var stringData:?[]const u8 = null;
+	var numberData:?std.ArrayList([]const u8) = .empty;
+	var floatData:?std.ArrayList(f32) = .empty;
+
+	var gpa:std.heap.DebugAllocator(.{}) = .init;
+
+	if (tokens.len == 1) {
+		// Should only be .text and .data
+		if (std.mem.eql(u8, tokens[0].lexeme, ".text")) {
+			dirType = .Text;
+		} else if (std.mem.eql(u8, tokens[0].lexeme, ".data")) {
+			dirType = .Data;
+		} else {
+			// This should not be the case
+			return ParserError.InvalidSyntax;
+		}
+	}
+
+	dirType = Directive.DirectiveTypeString.get(tokens[0].lexeme) orelse {
+		return ParserError.InvalidSyntax;
+	};
+
+	switch (dirType) {
+		.Set => {
 			if (tokens.len < 4) return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .IDENTIFIER) return ParserError.InvalidSyntax;
+			symbol = tokens[1].lexeme;
 			if (tokens[2].tokType != .COMMA) return ParserError.InvalidSyntax;
-
-			const exprVal = try Expr.parseEval(tokens[3..], Expr.ExprSize.U32);
-
-			return .{
-				.directiveType = .Set,
-				.symbol = tokens[1].lexeme,
-				.exprNum = @intCast(exprVal)
-			};
+			// Rest is the expression
+			try numberData.?.append(gpa.allocator(), try exprTokToString(tokens[3..], gpa.allocator()));
 		},
-		else => return ParserError.UnexpectedToken
+		.String => {
+			if (tokens.len != 2) return ParserError.InvalidSyntax;
+			if (tokens[1].tokType != .STRING) return ParserError.InvalidSyntax;
+			stringData = tokens[1].lexeme;
+		},
+		.Byte, .Hword, .Word => {
+			if (tokens.len < 2) return ParserError.InvalidSyntax;
+
+			// The operands are EXPR{, ...EXPR} after the first token (the directive)
+			// Capture all the sequential tokens up until a comma into a single string (exprTokToString)
+
+			var exprIStart: u16 = 1;
+			var exprIEnd: u16 = 1;
+			var currTok = tokens[1];
+			while (exprIEnd < tokens.len) {
+				currTok = tokens[exprIEnd];
+				if (currTok.tokType == .COMMA) {
+					// Get the slice that contains an expression
+					const slice = tokens[exprIStart..exprIEnd - 1];
+					const exprStr = try exprTokToString(slice, gpa.allocator());
+					try numberData.?.append(gpa.allocator(), exprStr);
+
+					// Reset for next expression
+					exprIEnd += 1;
+					exprIStart = exprIEnd;
+
+					if (exprIStart == tokens.len) {
+						// The comma was the last token in the expr list, invalid
+						return ParserError.InvalidSyntax;
+					}
+				} else {
+					exprIEnd += 1;
+				}
+			}
+		},
+		.Float => {
+			// Almost the same as Byte, Hword, and Word
+			//   except no need for expressions, just a single float
+
+			if (tokens.len < 2) return ParserError.InvalidSyntax;
+
+			// The operands are FLOAT{, ...FLOAT} after the first token (the directive)
+
+			for (tokens[1..], 1..) |item, i| {
+				if (item.tokType == .FLOAT) {
+					try floatData.?.append(gpa.allocator(), try std.fmt.parseFloat(f32, item.lexeme));
+				} else if (item.tokType == .COMMA) {
+					if (i == tokens.len - 1) {
+						return ParserError.InvalidSyntax;
+					}
+				} else {
+					return ParserError.InvalidSyntax;
+				}
+			}
+		},
+		else => {
+			std.debug.print("Other case\n", .{});
+		}
 	}
+
+	if (numberData.?.items.len == 0) {
+		numberData.?.deinit(gpa.allocator());
+		numberData = null;
+	}
+	if (floatData.?.items.len == 0) {
+		floatData.?.deinit(gpa.allocator());
+		floatData = null;
+	}
+
+	return .{
+		.directiveType = dirType,
+		.symbol = symbol,
+		.stringData = stringData,
+		.floatData = floatData,
+		.numberData = numberData,
+		._allocator = gpa
+	};
+}
+
+test "ParseDirective" {
+	const Lexer = @import("lexer.zig");
+
+	const textDir = try parseDirective(&.{Token.Token{.lexeme = ".text", .tokType = .IDENTIFIER}});
+	const expectedTextDir = Directive.Directive{
+		.directiveType = .Text,
+		.symbol = null,
+		.stringData = null,
+		.numberData = null,
+		.floatData = null,
+		._allocator = .init
+	};
+	try std.testing.expectEqual(expectedTextDir, textDir);
+
+
+	const dataDir = try parseDirective(&.{Token.Token{.lexeme = ".data", .tokType = .IDENTIFIER}});
+	const expectedDataDir = Directive.Directive{
+		.directiveType = .Data,
+		.symbol = null,
+		.stringData = null,
+		.numberData = null,
+		.floatData = null,
+		._allocator = .init
+	};
+	try std.testing.expectEqual(expectedDataDir, dataDir);
+
+
+	const setDir = try parseDirective(&.{
+		Token.Token{.lexeme = ".set", .tokType = .IDENTIFIER},
+		Token.Token{.lexeme = "SYM", .tokType = .IDENTIFIER},
+		Token.Token{.lexeme = ",", .tokType = .COMMA},
+		Token.Token{.lexeme = "10", .tokType = .INTEGER},
+		Token.Token{.lexeme = "*", .tokType = .ASTERISK},
+		Token.Token{.lexeme = "2", .tokType = .INTEGER}
+	});
+	// var numDataBuf = [_][]const u8{"10*2"};
+	var expectedSetDir = Directive.Directive{
+		.directiveType = .Set,
+		.symbol = "SYM",
+		.stringData = null,
+		.numberData = .empty,
+		.floatData = null,
+		._allocator = .init
+	};
+	try expectedSetDir.numberData.?.append(expectedSetDir._allocator.allocator(), "10*2");
+
+	try std.testing.expectEqual(expectedSetDir.directiveType, setDir.directiveType);
+	try std.testing.expectEqualStrings(expectedSetDir.symbol.?, setDir.symbol.?);
+	try std.testing.expect(equalStringArrayLists(expectedSetDir.numberData.?, setDir.numberData.?));
+
+
+	const toks = try Lexer.lex(std.testing.allocator, ".string \"NYA\"");
+	defer std.testing.allocator.free(toks);
+	const stringDir = try parseDirective(toks);
+	const expectedStringDir = Directive.Directive{
+		.directiveType = .String,
+		.symbol = null,
+		.stringData = "\"NYA\"",
+		.numberData = null,
+		.floatData = null,
+		._allocator = .init
+	};
+	try std.testing.expectEqual(expectedStringDir.directiveType, stringDir.directiveType);
+	try std.testing.expectEqualStrings(expectedStringDir.stringData.?, stringDir.stringData.?);
 }
