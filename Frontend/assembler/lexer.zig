@@ -282,19 +282,19 @@ fn getNextToken(state: *LexerState, input: []const u8) !?Token.Token {
 					state.pos = endPos - 1;
 				} else {
 					while (endPos < input.len and (std.ascii.isDigit(input[endPos]))) : (endPos += 1) {}
-				}
-				// Check for float
-				if (endPos < input.len and input[endPos] == '.') {
-					endPos += 1; // Skip '.'
-					while (endPos < input.len and std.ascii.isDigit(input[endPos])) : (endPos += 1) {}
+					// Check for float
+					if (endPos < input.len and input[endPos] == '.') {
+						endPos += 1; // Skip '.'
+						while (endPos < input.len and std.ascii.isDigit(input[endPos])) : (endPos += 1) {}
 
-					token.lexeme = input[state.pos..endPos];
-					token.tokType = .FLOAT;
-					state.pos = endPos - 1;
-				} else {
-					token.lexeme = input[state.pos..endPos];
-					token.tokType = .INTEGER;
-					state.pos = endPos - 1;
+						token.lexeme = input[state.pos..endPos];
+						token.tokType = .FLOAT;
+						state.pos = endPos - 1;
+					} else {
+						token.lexeme = input[state.pos..endPos];
+						token.tokType = .INTEGER;
+						state.pos = endPos - 1;
+					}
 				}
 			} else {
 				return LexerError.InvalidCharacter;
