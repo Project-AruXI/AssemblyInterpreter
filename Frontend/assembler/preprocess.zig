@@ -4,12 +4,21 @@ const std = @import("std");
 
 
 /// Preprocess a line that can either be:
-///   label: .directive...
+///
+///   label: .directive ...
+/// 
 ///   label: instruction...
-///   .directive...
+///
+///   .directive ...
+/// 
 ///   instruction...
+///
+///   label:
+///
 /// It will return a struct containing the label (if any), and either the directive or instruction (if any).
-pub fn preprocess(str: []const u8) struct { ?[]const u8, ?[]const u8 } {
+pub fn preprocess(_str: []const u8) struct { ?[]const u8, ?[]const u8 } {
+	const str = std.mem.trim(u8, _str, " \t");
+
 	// Everything up until the first colon is the label (if it exists)
 	const colonIndex = std.mem.indexOf(u8, str, ":");
 	if (colonIndex) |idx| {
