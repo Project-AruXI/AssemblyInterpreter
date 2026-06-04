@@ -1,5 +1,8 @@
 // zig fmt: off
 
+const Writer = @import("std").Io.Writer;
+const eql = @import("std").mem.eql;
+
 pub const TokenType = enum {
 	EOL,
 	NL, // \n
@@ -35,5 +38,19 @@ pub const TokenType = enum {
 
 pub const Token = struct {
 	lexeme: []const u8,
-	tokType: TokenType
+	tokType: TokenType,
+
+	pub fn format(self: *const Token, writer: *Writer) !void {
+		try writer.writeAll("Token{ ");
+		inline for (@typeInfo(Token).@"struct".fields) |field| {
+			const value = @field(self, field.name);
+
+			if (comptime eql(u8, field.name, "lexeme")) {
+				try writer.print("{s}: \"{s}\", ", .{field.name, value});
+			} else {
+				try writer.print("{s}: {any} ", .{field.name, value});
+			}
+		}
+		try writer.writeAll("}");
+	}
 };
