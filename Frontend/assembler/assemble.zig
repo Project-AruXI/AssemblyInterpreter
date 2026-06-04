@@ -3,7 +3,7 @@
 const std = @import("std");
 const Lexer = @import("lexer.zig");
 const Parser = @import("parser.zig");
-const _directive = @import("directive.zig");
+const Directive = @import("directive.zig").Directive;
 
 
 pub fn assemble(instrStr: []const u8) !u32 {
@@ -35,7 +35,7 @@ pub fn assemble(instrStr: []const u8) !u32 {
 	return encoding;
 }
 
-pub fn assembleDirective(directiveStr: []const u8) !_directive.Directive {
+pub fn assembleDirective(directiveStr: []const u8) !Directive {
 	std.debug.print("Assembling directive {s}\n", .{directiveStr});
 	
 

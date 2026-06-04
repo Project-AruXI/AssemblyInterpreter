@@ -402,32 +402,6 @@ pub fn parseInstruction(tokens: []const Token.Token) !Instr.Instr {
 	return instr;
 }
 
-
-fn exprTokToString(tokens: []const Token.Token, allocator: std.mem.Allocator) ![]const u8 {
-	var exprStringList = try std.ArrayList([]const u8).initCapacity(allocator, tokens.len);
-	defer exprStringList.deinit(allocator);
-
-	for (tokens) |tok| {
-		try exprStringList.append(allocator, tok.lexeme);
-	}
-
-	return try std.mem.join(allocator, "", exprStringList.items);
-}
-
-test "ExprTokToString" {
-	const exprTokens = &.{
-		Token.Token{.lexeme = "3", .tokType = .INTEGER},
-		Token.Token{.lexeme = "+", .tokType = .PLUS},
-		Token.Token{.lexeme = "6", .tokType = .INTEGER}
-	};
-
-	const expectedExpr = "3+6";
-
-	const expr = try exprTokToString(exprTokens, std.testing.allocator);
-	try std.testing.expectEqualStrings(expectedExpr, expr);
-	std.testing.allocator.free(expr);
-}
-
 fn equalStringArrayLists(list1: std.ArrayList([]const u8), list2: std.ArrayList([]const u8)) bool {
 	const slice1 = list1.items;
 	const slice2 = list2.items;
@@ -445,7 +419,7 @@ pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
 	var dirType:Directive.DirectiveType = undefined;
 	var symbol:?[]const u8 = null;
 	var stringData:?[]const u8 = null;
-	var numberData:?std.ArrayList([]const u8) = .empty;
+	var numberData:?std.ArrayList([]const Token.Token) = .empty;
 	var floatData:?std.ArrayList(f32) = .empty;
 
 	var gpa:std.heap.DebugAllocator(.{}) = .init;
@@ -473,18 +447,18 @@ pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
 			symbol = tokens[1].lexeme;
 			if (tokens[2].tokType != .COMMA) return ParserError.InvalidSyntax;
 			// Rest is the expression
-			try numberData.?.append(gpa.allocator(), try exprTokToString(tokens[3..], gpa.allocator()));
+			try numberData.?.append(gpa.allocator(), tokens[3..]);
 		},
 		.String => {
 			if (tokens.len != 2) return ParserError.InvalidSyntax;
 			if (tokens[1].tokType != .STRING) return ParserError.InvalidSyntax;
-			stringData = tokens[1].lexeme;
+			stringData = tokens[1].lexeme[1..tokens[1].lexeme.len-1];
 		},
 		.Byte, .Hword, .Word => {
 			if (tokens.len < 2) return ParserError.InvalidSyntax;
 
 			// The operands are EXPR{, ...EXPR} after the first token (the directive)
-			// Capture all the sequential tokens up until a comma into a single string (exprTokToString)
+			// Capture all the sequential tokens up until a comma
 
 			var exprIStart: u16 = 1;
 			var exprIEnd: u16 = 1;
@@ -494,8 +468,7 @@ pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
 				if (currTok.tokType == .COMMA) {
 					// Get the slice that contains an expression
 					const slice = tokens[exprIStart..exprIEnd - 1];
-					const exprStr = try exprTokToString(slice, gpa.allocator());
-					try numberData.?.append(gpa.allocator(), exprStr);
+					try numberData.?.append(gpa.allocator(), slice);
 
 					// Reset for next expression
 					exprIEnd += 1;
@@ -531,7 +504,7 @@ pub fn parseDirective(tokens: []const Token.Token) !Directive.Directive {
 			}
 		},
 		else => {
-			std.debug.print("Other case\n", .{});
+			std.debug.print("\n", .{});
 		}
 	}
 

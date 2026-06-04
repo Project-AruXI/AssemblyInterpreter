@@ -2,6 +2,8 @@
 
 const std = @import("std");
 
+const Token = @import("token.zig").Token;
+
 
 pub const DirectiveType = enum {
 	Text, // .text
@@ -36,7 +38,7 @@ pub const Directive = struct {
 
 	stringData: ?[]const u8,
 
-	numberData: ?std.ArrayList([]const u8),
+	numberData: ?std.ArrayList([]const Token),
 	floatData: ?std.ArrayList(f32),
 
 
