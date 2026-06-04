@@ -43,6 +43,10 @@ pub const AruMemory = struct {
 		const heapStart = textSegStart + textSegSize;
 		const stackStart = heapStart + heapSize;
 
+		// Fill text with HLT instructions
+		const textSlice = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(memSlice[textSegStart..textSegStart+textSegSize])));
+		@memset(textSlice, 0xff080000);
+
 		var symbolMap = std.StringHashMap(u32).init(allocator);
 		// Pre-populate symbol map with "labels" indicating segment starts
 		try symbolMap.put("data", dataSegStart);
@@ -152,11 +156,6 @@ pub const AruMemory = struct {
 		}
 
 		try this.symbolMap.put(label, addr);
-	}
-
-	/// Adds a symbol to the symbol map with its associated value. Used for directives like `.set`.
-	pub fn addSymbol(this: *AruMemory, symbol: []const u8, value: u32) !void {
-		try this.symbolMap.put(symbol, value);
 	}
 
 	/// Retrieves the address associated with a label from the symbol map.
